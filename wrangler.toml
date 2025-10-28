@@ -1,5 +1,5 @@
 name = "vocal-class"
-compatibility_date = "2025-10-29"
+compatibility_date = "2025-10-28"
 pages_build_output_dir = "."
 
 # D1 데이터베이스 바인딩
