@@ -1,23 +1,14 @@
 {
-  "name": "vocal-class-cloudflare",
+  "name": "vocal-class-local-server",
   "version": "1.0.0",
-  "description": "Vocal Class Management on Cloudflare",
+  "description": "Local server for testing attendance submission",
+  "main": "server.js",
   "scripts": {
-    "dev": "wrangler pages dev . --d1=DB --r2=STORAGE --kv=SESSIONS --port=8788",
-    "deploy": "wrangler pages deploy .",
-    "deploy:production": "wrangler pages deploy . --branch=main",
-    "d1:local": "wrangler d1 execute vocal-class-db --local --file=./schema.sql",
-    "d1:remote": "wrangler d1 execute vocal-class-db --file=./schema.sql",
-    "d1:query": "wrangler d1 execute vocal-class-db --command",
-    "logs": "wrangler pages deployment tail",
-    "type-check": "tsc --noEmit"
+    "start": "node server.js"
   },
-  "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241106.0",
-    "typescript": "^5.6.3",
-    "wrangler": "^3.86.1"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "csv-stringify": "^6.0.5",
+    "express": "^4.18.2"
   }
 }
