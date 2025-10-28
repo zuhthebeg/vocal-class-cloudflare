@@ -1,19 +1,19 @@
 name = "vocal-class"
-compatibility_date = "2025-10-29"
+compatibility_date = "2025-10-28"
 pages_build_output_dir = "."
 
 # D1 데이터베이스 바인딩
-[[d1_databases]]
-binding = "DB"
-database_name = "vocal-class-db"
-database_id = "" # wrangler d1 create 후 자동 생성됨
+#[[d1_databases]]
+#binding = "DB"
+#database_name = "vocal-class-db"
+#database_id = "" # wrangler d1 create 후 자동 생성됨
 
 # R2 버킷 바인딩 (녹음파일, 서명 이미지 저장)
-[[r2_buckets]]
-binding = "STORAGE"
-bucket_name = "vocal-class-storage"
+#[[r2_buckets]]
+#binding = "STORAGE"
+#bucket_name = "vocal-class-storage"
 
 # KV 네임스페이스 (세션 관리용, 선택사항)
-[[kv_namespaces]]
-binding = "SESSIONS"
-id = "" # wrangler kv:namespace create 후 생성됨
+#[[kv_namespaces]]
+#binding = "SESSIONS"
+#id = "" # wrangler kv:namespace create 후 생성됨
