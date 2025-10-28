@@ -1,0 +1,22 @@
+{
+  "name": "Vocal Class WebApp",
+  "short_name": "VocalClass",
+  "description": "보컬 수업 관리를 위한 웹앱 프로토타입",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "images/icon-192x192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "images/icon-72x72.svg",
+      "sizes": "72x72",
+      "type": "image/svg+xml"
+    }
+  ]
+}
