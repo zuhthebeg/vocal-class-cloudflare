@@ -14,6 +14,6 @@ binding = "STORAGE"
 bucket_name = "vocal-class-storage"
 
 # KV 네임스페이스 (세션 관리용, 선택사항)
-[[kv_namespaces]]
-binding = "SESSIONS"
-id = "" # wrangler kv:namespace create 후 생성됨
+#[[kv_namespaces]]
+#binding = "SESSIONS"
+#id = "" # wrangler kv:namespace create 후 생성됨
