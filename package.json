@@ -1,0 +1,23 @@
+{
+  "name": "vocal-class-cloudflare",
+  "version": "1.0.0",
+  "description": "Vocal Class Management on Cloudflare",
+  "scripts": {
+    "dev": "wrangler pages dev . --d1=DB --r2=STORAGE --kv=SESSIONS --port=8788",
+    "deploy": "wrangler pages deploy .",
+    "deploy:production": "wrangler pages deploy . --branch=main",
+    "d1:local": "wrangler d1 execute vocal-class-db --local --file=./schema.sql",
+    "d1:remote": "wrangler d1 execute vocal-class-db --file=./schema.sql",
+    "d1:query": "wrangler d1 execute vocal-class-db --command",
+    "logs": "wrangler pages deployment tail",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241106.0",
+    "typescript": "^5.6.3",
+    "wrangler": "^3.86.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
