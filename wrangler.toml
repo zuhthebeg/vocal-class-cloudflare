@@ -3,10 +3,10 @@ compatibility_date = "2025-10-28"
 pages_build_output_dir = "."
 
 # D1 데이터베이스 바인딩
-#[[d1_databases]]
-#binding = "DB"
-#database_name = "vocal-class-db"
-#database_id = "" # wrangler d1 create 후 자동 생성됨
+[[d1_databases]]
+binding = "vocal_class_db"
+database_name = "vocal-class-db"
+database_id = "9f90ac1e-f6d8-4a9b-9e9d-2ae5548ac054"
 
 # R2 버킷 바인딩 (녹음파일, 서명 이미지 저장)
 #[[r2_buckets]]

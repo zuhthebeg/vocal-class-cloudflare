@@ -1,0 +1,7 @@
+# .dev.vars.example
+# 로컬 개발 환경을 위한 환경 변수 예시
+# 실제 사용 시 .dev.vars 파일로 복사하여 사용하세요
+
+# 데이터베이스 바인딩은 wrangler.toml에서 설정됩니다
+# 아래 명령어로 로컬 서버를 실행하세요:
+# wrangler pages dev . --d1=DB --r2=STORAGE --port=8788

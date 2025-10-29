@@ -7,8 +7,8 @@ interface Env {
 interface BookingRequest {
   studentId: number;
   teacherId: number;
-  scheduleId: number;
-  bookingDate: string; // YYYY-MM-DD 형식
+  bookingDate: string; // 'YYYY-MM-DD'
+  timeSlot: string; // 'HH:MM'
 }
 
 // POST: 예약 생성
@@ -17,22 +17,56 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     const { request, env } = context;
     const data: BookingRequest = await request.json();
 
-    if (!data.studentId || !data.teacherId || !data.scheduleId || !data.bookingDate) {
+    if (!data.studentId || !data.teacherId || !data.bookingDate || !data.timeSlot) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // 중복 예약 확인
-    const existing = await env.DB.prepare(`
-      SELECT id FROM bookings
-      WHERE schedule_id = ? AND booking_date = ? AND status != 'cancelled'
+    // 날짜 형식 검증
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data.bookingDate)) {
+      return new Response(JSON.stringify({ error: 'Invalid date format. Use YYYY-MM-DD' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 시간 형식 검증
+    if (!/^\d{1,2}:\d{2}$/.test(data.timeSlot)) {
+      return new Response(JSON.stringify({ error: 'Invalid time format. Use HH:MM' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 스케줄이 존재하는지 확인
+    const schedule = await env.DB.prepare(`
+      SELECT id FROM schedules
+      WHERE teacher_id = ? AND specific_date = ? AND time_slot = ? AND is_available = 1
     `)
-      .bind(data.scheduleId, data.bookingDate)
+      .bind(data.teacherId, data.bookingDate, data.timeSlot)
       .first();
 
-    if (existing) {
+    if (!schedule) {
+      return new Response(
+        JSON.stringify({ error: 'Schedule not available for this time slot' }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // 중복 예약 확인 (같은 날짜/시간에 다른 학생의 예약이 있는지)
+    const existingBooking = await env.DB.prepare(`
+      SELECT id FROM bookings
+      WHERE teacher_id = ? AND booking_date = ? AND time_slot = ? AND status != 'cancelled'
+    `)
+      .bind(data.teacherId, data.bookingDate, data.timeSlot)
+      .first();
+
+    if (existingBooking) {
       return new Response(
         JSON.stringify({ error: 'Time slot already booked' }),
         {
@@ -42,12 +76,30 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
       );
     }
 
+    // 같은 학생이 이미 예약했는지 확인
+    const studentBooking = await env.DB.prepare(`
+      SELECT id FROM bookings
+      WHERE student_id = ? AND booking_date = ? AND time_slot = ? AND status != 'cancelled'
+    `)
+      .bind(data.studentId, data.bookingDate, data.timeSlot)
+      .first();
+
+    if (studentBooking) {
+      return new Response(
+        JSON.stringify({ error: 'You have already booked this time slot' }),
+        {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     // 예약 생성
     const result = await env.DB.prepare(`
-      INSERT INTO bookings (student_id, teacher_id, schedule_id, booking_date, status)
+      INSERT INTO bookings (student_id, teacher_id, booking_date, time_slot, status)
       VALUES (?, ?, ?, ?, 'confirmed')
     `)
-      .bind(data.studentId, data.teacherId, data.scheduleId, data.bookingDate)
+      .bind(data.studentId, data.teacherId, data.bookingDate, data.timeSlot)
       .run();
 
     return new Response(
@@ -80,34 +132,44 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
     const url = new URL(request.url);
     const studentId = url.searchParams.get('studentId');
     const teacherId = url.searchParams.get('teacherId');
+    const bookingDate = url.searchParams.get('bookingDate');
 
     let query = `
-      SELECT 
+      SELECT
         b.id,
         b.booking_date,
+        b.time_slot,
         b.status,
         b.created_at,
-        s.day_of_week,
-        s.time_slot,
         u_student.name as student_name,
         u_teacher.name as teacher_name
       FROM bookings b
-      JOIN schedules s ON b.schedule_id = s.id
       JOIN users u_student ON b.student_id = u_student.id
       JOIN users u_teacher ON b.teacher_id = u_teacher.id
+      WHERE 1=1
     `;
 
     const params: any[] = [];
 
+    // 학생별 조회
     if (studentId) {
-      query += ' WHERE b.student_id = ?';
+      query += ' AND b.student_id = ?';
       params.push(studentId);
-    } else if (teacherId) {
-      query += ' WHERE b.teacher_id = ?';
+    }
+
+    // 강사별 조회
+    if (teacherId) {
+      query += ' AND b.teacher_id = ?';
       params.push(teacherId);
     }
 
-    query += ' ORDER BY b.booking_date DESC, s.time_slot DESC LIMIT 100';
+    // 특정 날짜 조회
+    if (bookingDate) {
+      query += ' AND b.booking_date = ?';
+      params.push(bookingDate);
+    }
+
+    query += ' ORDER BY b.booking_date DESC, b.time_slot DESC LIMIT 200';
 
     const { results } = await env.DB.prepare(query).bind(...params).all();
 
@@ -144,6 +206,34 @@ export async function onRequestDelete(context: { request: Request; env: Env }) {
       });
     }
 
+    // 예약이 존재하는지 확인
+    const booking = await env.DB.prepare(`
+      SELECT status FROM bookings WHERE id = ?
+    `)
+      .bind(bookingId)
+      .first();
+
+    if (!booking) {
+      return new Response(
+        JSON.stringify({ error: 'Booking not found' }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (booking.status === 'cancelled') {
+      return new Response(
+        JSON.stringify({ error: 'Booking is already cancelled' }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // 예약 취소 (상태 업데이트)
     await env.DB.prepare(`
       UPDATE bookings SET status = 'cancelled' WHERE id = ?
     `)

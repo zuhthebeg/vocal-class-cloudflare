@@ -3,24 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="보컬 클래스 수업 관리 및 출석 시스템">
     <title>Vocal Class - 로그인</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/components.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#4F46E5"/>
 </head>
 <body class="bg-gray-100 flex items-center justify-center h-screen">
 
-    <div class="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
-        <div class="text-center">
-            <h1 class="text-3xl font-bold text-gray-900">Vocal Class</h1>
+    <main role="main" class="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-md">
+        <header class="text-center">
+            <h1 id="app-title" class="text-3xl font-bold text-gray-900">Vocal Class</h1>
             <p class="mt-2 text-sm text-gray-600">수업 관리를 위한 웹앱</p>
-        </div>
+        </header>
 
-        <form id="login-form" class="space-y-6">
+        <form id="login-form" class="space-y-6" aria-labelledby="app-title" novalidate>
             <div>
                 <label for="name" class="text-sm font-medium text-gray-700">이름</label>
                 <input id="name" name="name" type="text" required
+                       aria-required="true"
+                       aria-label="사용자 이름 입력"
+                       autocomplete="name"
                        class="w-full px-3 py-2 mt-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                        placeholder="이름을 입력하세요">
             </div>
@@ -28,6 +33,7 @@
             <div>
                 <label for="role" class="text-sm font-medium text-gray-700">역할</label>
                 <select id="role" name="role"
+                        aria-label="사용자 역할 선택"
                         class="w-full px-3 py-2 mt-1 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
                     <option value="student">수강생</option>
                     <option value="teacher">강사</option>
@@ -35,14 +41,14 @@
             </div>
 
             <div>
-                <button type="submit"
-                        class="w-full px-4 py-2 font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <button type="submit" class="btn btn-primary w-full btn-lg" aria-label="로그인 버튼">
                     로그인
                 </button>
             </div>
         </form>
-    </div>
+    </main>
 
+    <script src="js/components.js"></script>
     <script src="js/auth.js"></script>
     <script>
         // For local testing: submit attendance to local server (run server.js on port 3001)
@@ -64,8 +70,32 @@
         // 로그인 처리
         document.getElementById('login-form').addEventListener('submit', (e) => {
             e.preventDefault();
-            const name = document.getElementById('name').value;
-            const role = document.getElementById('role').value;
+            const nameInput = document.getElementById('name');
+            const roleInput = document.getElementById('role');
+            const name = nameInput.value.trim();
+            const role = roleInput.value;
+
+            // 폼 검증
+            if (!name) {
+                nameInput.focus();
+                if (typeof showToast === 'function') {
+                    showToast('이름을 입력해주세요.', 'error');
+                } else {
+                    alert('이름을 입력해주세요.');
+                }
+                return;
+            }
+
+            if (name.length < 2) {
+                nameInput.focus();
+                if (typeof showToast === 'function') {
+                    showToast('이름은 2글자 이상 입력해주세요.', 'error');
+                } else {
+                    alert('이름은 2글자 이상 입력해주세요.');
+                }
+                return;
+            }
+
             login(name, role);
         });
     </script>

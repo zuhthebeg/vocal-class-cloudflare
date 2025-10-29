@@ -9,15 +9,16 @@ CREATE TABLE IF NOT EXISTS users (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 스케줄 테이블 (강사의 가능 시간)
+-- 스케줄 테이블 (강사의 가능 시간 - 날짜 기반)
 CREATE TABLE IF NOT EXISTS schedules (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     teacher_id INTEGER NOT NULL,
-    day_of_week TEXT NOT NULL CHECK(day_of_week IN ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')),
-    time_slot TEXT NOT NULL, -- 'HH:MM' 형식
+    specific_date DATE NOT NULL, -- 'YYYY-MM-DD' 형식 (예: '2025-10-29')
+    time_slot TEXT NOT NULL, -- 'HH:MM' 형식 (예: '10:00')
     is_available BOOLEAN DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (teacher_id) REFERENCES users(id)
+    FOREIGN KEY (teacher_id) REFERENCES users(id),
+    UNIQUE(teacher_id, specific_date, time_slot) -- 중복 방지
 );
 
 -- 예약 테이블
@@ -25,13 +26,13 @@ CREATE TABLE IF NOT EXISTS bookings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     student_id INTEGER NOT NULL,
     teacher_id INTEGER NOT NULL,
-    schedule_id INTEGER NOT NULL,
-    booking_date DATE NOT NULL,
+    booking_date DATE NOT NULL, -- 예약한 날짜 'YYYY-MM-DD'
+    time_slot TEXT NOT NULL, -- 예약한 시간 'HH:MM'
     status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'confirmed', 'cancelled', 'completed')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES users(id),
     FOREIGN KEY (teacher_id) REFERENCES users(id),
-    FOREIGN KEY (schedule_id) REFERENCES schedules(id)
+    UNIQUE(student_id, booking_date, time_slot, status) -- 동일 학생이 같은 시간에 중복 예약 방지 (취소된 것 제외)
 );
 
 -- 출석 테이블
@@ -71,6 +72,10 @@ CREATE TABLE IF NOT EXISTS example_videos (
 
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_schedules_teacher ON schedules(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_schedules_date ON schedules(specific_date);
+CREATE INDEX IF NOT EXISTS idx_schedules_teacher_date ON schedules(teacher_id, specific_date);
 CREATE INDEX IF NOT EXISTS idx_bookings_student ON bookings(student_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_teacher ON bookings(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(booking_date);
+CREATE INDEX IF NOT EXISTS idx_bookings_date_time ON bookings(booking_date, time_slot);
 CREATE INDEX IF NOT EXISTS idx_attendances_session ON attendances(session_id);

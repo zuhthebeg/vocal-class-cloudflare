@@ -5,19 +5,125 @@ const USER_KEY = 'vocalUser';
  * @param {string} name - 사용자 이름
  * @param {string} role - 사용자 역할 ('teacher' 또는 'student')
  */
-function login(name, role) {
+async function login(name, role) {
     if (!name || !role) {
-        alert('이름과 역할을 모두 입력해주세요.');
+        if (typeof showToast === 'function') {
+            showToast('이름과 역할을 모두 입력해주세요.', 'error');
+        } else {
+            alert('이름과 역할을 모두 입력해주세요.');
+        }
         return;
     }
-    const user = { name, role };
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-    
-    // 역할에 따라 페이지 이동
-    if (role === 'teacher') {
-        window.location.href = '/teacher.html';
-    } else {
-        window.location.href = '/student.html';
+
+    try {
+        // Show loading
+        if (typeof showLoading === 'function') {
+            showLoading(true);
+        }
+
+        // localStorage 전용 모드 체크 (API 서버가 없을 때)
+        // 포트 3000, 8000, 8080, 5000 등을 사용하거나 localhost, 192.168.x.x IP면 개발 모드
+        const isDevelopmentPort = ['3000', '8000', '8080', '5000', '5500'].includes(window.location.port);
+        const isLocalhost = window.location.hostname === 'localhost' ||
+                           window.location.hostname === '127.0.0.1' ||
+                           window.location.hostname.startsWith('192.168.') ||
+                           window.location.hostname.startsWith('10.') ||
+                           !window.location.hostname;
+
+        const USE_LOCAL_STORAGE_ONLY = isLocalhost || isDevelopmentPort;
+
+        let user;
+
+        if (USE_LOCAL_STORAGE_ONLY) {
+            // localStorage 전용 모드: API 호출 없이 로컬에서만 작동
+            console.warn('🔧 개발 모드: API 없이 localStorage만 사용합니다.');
+
+            // 간단한 ID 생성 (타임스탬프 기반)
+            const userId = Date.now();
+            user = { id: userId, name, role };
+
+            // localStorage에 저장
+            localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+            if (typeof showLoading === 'function') {
+                showLoading(false);
+            }
+
+            if (typeof showToast === 'function') {
+                showToast(`환영합니다, ${name}님! (개발 모드)`, 'success');
+            }
+
+            // 페이지 이동
+            setTimeout(() => {
+                if (role === 'teacher') {
+                    window.location.href = '/teacher.html';
+                } else {
+                    window.location.href = '/student.html';
+                }
+            }, 500);
+            return;
+        }
+
+        // API 모드: 실제 서버 호출
+        const response = await fetch('/api/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, role }),
+        });
+
+        // 응답이 비어있는지 확인
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('서버에서 올바른 응답을 받지 못했습니다. wrangler pages dev로 서버를 실행해주세요.');
+        }
+
+        const text = await response.text();
+        let data;
+
+        try {
+            data = text ? JSON.parse(text) : {};
+        } catch (parseError) {
+            console.error('JSON parse error:', parseError, 'Response text:', text);
+            throw new Error('서버 응답을 파싱할 수 없습니다.');
+        }
+
+        if (!response.ok) {
+            throw new Error(data.error || `로그인 실패 (${response.status})`);
+        }
+
+        user = data.user;
+
+        // Store user info in localStorage
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+        // Hide loading
+        if (typeof showLoading === 'function') {
+            showLoading(false);
+        }
+
+        // Show success message
+        if (typeof showToast === 'function') {
+            showToast(`환영합니다, ${data.user.name}님!`, 'success');
+        }
+
+        // Redirect based on role
+        setTimeout(() => {
+            if (role === 'teacher') {
+                window.location.href = '/teacher.html';
+            } else {
+                window.location.href = '/student.html';
+            }
+        }, 500);
+    } catch (error) {
+        console.error('Login error:', error);
+        if (typeof showLoading === 'function') {
+            showLoading(false);
+        }
+        if (typeof handleApiError === 'function') {
+            handleApiError(error);
+        } else {
+            alert('로그인 중 오류가 발생했습니다: ' + error.message);
+        }
     }
 }
 
