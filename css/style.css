@@ -2,22 +2,30 @@
 
 /* Tailwind CSS가 대부분의 스타일을 처리하지만, 필요한 경우 여기에 사용자 정의 스타일을 추가합니다. */
 
-/* 캔버스 컨테이너의 최소 높이 설정 */
+/* 캔버스 컨테이너 크기 설정 */
 .canvas-container {
-    min-height: 300px; /* 서명 패드 및 드로잉 보드 캔버스 */
+    height: 300px; /* 모바일 기본 높이 */
     width: 100%;
     position: relative;
 }
 
-/* 드로잉 보드 캔버스 */
-#drawing-board {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+/* 데스크톱에서는 더 큰 캔버스 */
+@media (min-width: 768px) {
+    .canvas-container {
+        height: 400px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .canvas-container {
+        height: 500px;
+    }
+}
+
+/* 드로잉 보드 wrapper */
+#canvas-wrapper {
+    position: relative;
     background-color: #fff;
-    cursor: crosshair;
 }
 
 /* 클립아트 스타일 */

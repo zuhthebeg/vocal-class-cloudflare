@@ -31,6 +31,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let canvasMemory = null; // 캔버스 상태 저장용 변수
 
+    // 도형 그리기용 변수
+    let shiftPressed = false;  // Shift 키: 직선
+    let ctrlPressed = false;   // Ctrl 키: 원/사각형
+    let startX = 0;
+    let startY = 0;
+    let tempImageData = null;  // 임시 캔버스 상태 저장
+
     // 캔버스 상태 저장
     function saveCanvasState() {
         canvasMemory = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -43,27 +50,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 캔버스 크기 설정 (16:9 비율 유지)
+    // 캔버스 크기 설정 (컨테이너에 맞춤)
     function resizeCanvas() {
-        const canvasWrapper = canvas.parentElement;
-        const container = canvasWrapper.parentElement;
-        const rect = container.getBoundingClientRect();
-        const dpr = window.devicePixelRatio || 1;
-        
-        // 캔버스 기본 크기 (16:9 비율)
-        const BASE_WIDTH = 1280;
-        const BASE_HEIGHT = 720;
-        
-        // 컨테이너 내부 사용 가능한 크기 계산 (패딩 32px 고려)
-        const availableWidth = rect.width - 32;
-        const availableHeight = rect.height - 32;
-        
-        // 기본 스케일 계산 (컨테이너에 맞추기)
-        const baseScale = Math.min(
-            availableWidth / BASE_WIDTH,
-            availableHeight / BASE_HEIGHT
-        );
-        
+        const wrapper = canvas.parentElement;
+        const rect = wrapper.getBoundingClientRect();
+
         // 현재 캔버스 상태 저장
         let imageData = null;
         try {
@@ -73,45 +64,45 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.warn('캔버스 상태 저장 실패:', e);
         }
-        
-        // 캔버스 실제 크기 설정
-        const width = Math.floor(BASE_WIDTH);
-        const height = Math.floor(BASE_HEIGHT);
+
+        // 캔버스 실제 크기를 wrapper 크기와 동일하게 설정
+        const width = Math.floor(rect.width);
+        const height = Math.floor(rect.height);
+
         canvas.width = width;
         canvas.height = height;
-        
-        // 캔버스 표시 크기 설정 (확대/축소 고려)
-        const displayWidth = Math.floor(width * baseScale * currentZoom);
-        const displayHeight = Math.floor(height * baseScale * currentZoom);
-        canvas.style.width = `${displayWidth}px`;
-        canvas.style.height = `${displayHeight}px`;
-        
+
+        // CSS 크기도 명시적으로 설정 (확대/축소 적용)
+        canvas.style.width = `${width * currentZoom}px`;
+        canvas.style.height = `${height * currentZoom}px`;
+
+        // wrapper가 overflow되면 스크롤 가능하도록
+        if (currentZoom > 1) {
+            wrapper.style.overflow = 'auto';
+        } else {
+            wrapper.style.overflow = 'hidden';
+        }
+
         // 컨텍스트 설정
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.scale(1, 1); // 기본 스케일로 설정
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.strokeStyle = currentColor;
-        ctx.lineWidth = currentBrushSize * currentZoom;
-        
+        ctx.lineWidth = currentBrushSize;
+
         // 저장된 상태 복원
         if (imageData) {
-            ctx.putImageData(imageData, 0, 0);
+            try {
+                ctx.putImageData(imageData, 0, 0);
+            } catch (e) {
+                console.warn('캔버스 상태 복원 실패:', e);
+            }
         }
-        
+
         // 줌 레벨 표시 업데이트
         updateZoomDisplay();
-        
-        // zoom level 표시 업데이트
-        updateZoomLevel();
     }
-    
+
     // 확대/축소 레벨 업데이트
-    function updateZoomLevel() {
-        zoomLevelDisplay.textContent = `${Math.round(currentZoom * 100)}%`;
-    }
-    
-    // 확대/축소 관련 함수들
     function updateZoomDisplay() {
         const percent = Math.round(currentZoom * 100);
         zoomLevelDisplay.textContent = `${percent}%`;
@@ -173,6 +164,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const x = (clientX - rect.left) * scaleX;
         const y = (clientY - rect.top) * scaleY;
 
+        // 시작점 저장 (도형 그리기용)
+        startX = x;
+        startY = y;
+
+        // 도형 그리기 모드인 경우 현재 캔버스 상태 저장
+        if (shiftPressed || ctrlPressed) {
+            tempImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        }
+
         ctx.beginPath();
         ctx.moveTo(x, y);
     }
@@ -194,17 +194,57 @@ document.addEventListener('DOMContentLoaded', () => {
         const x = (clientX - rect.left) * scaleX;
         const y = (clientY - rect.top) * scaleY;
 
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(x, y);
+        if (shiftPressed) {
+            // Shift: 직선 그리기
+            if (tempImageData) {
+                ctx.putImageData(tempImageData, 0, 0);
+            }
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+        } else if (ctrlPressed) {
+            // Ctrl: 원 그리기
+            if (tempImageData) {
+                ctx.putImageData(tempImageData, 0, 0);
+            }
+            const radius = Math.sqrt(Math.pow(x - startX, 2) + Math.pow(y - startY, 2));
+            ctx.beginPath();
+            ctx.arc(startX, startY, radius, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            // 기본: 자유 그리기
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
     }
 
     // 그리기 종료
     function stopDrawing() {
         drawing = false;
+        tempImageData = null; // 임시 이미지 데이터 초기화
         ctx.beginPath(); // 새로운 경로 시작
     }
+
+    // 키보드 이벤트 리스너 (Shift, Ctrl 감지)
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift') {
+            shiftPressed = true;
+        } else if (e.key === 'Control' || e.ctrlKey) {
+            ctrlPressed = true;
+            e.preventDefault(); // 브라우저 기본 동작 방지
+        }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        if (e.key === 'Shift') {
+            shiftPressed = false;
+        } else if (e.key === 'Control' || e.ctrlKey) {
+            ctrlPressed = false;
+        }
+    });
 
     // 이벤트 리스너
     canvas.addEventListener('mousedown', startDrawing);
@@ -317,13 +357,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 클립아트 드래그 앤 드롭
+    // 클립아트 및 저장된 그림 드래그 앤 드롭
     let draggedClipart = null;
 
+    // 클립아트 dragstart
     clipartContainer.addEventListener('dragstart', (e) => {
         if (e.target.classList.contains('draggable')) {
             draggedClipart = e.target;
             e.dataTransfer.setData('text/plain', e.target.src);
+            e.dataTransfer.effectAllowed = 'copy';
+        }
+    });
+
+    // 저장된 그림 dragstart
+    savedDrawingsContainer.addEventListener('dragstart', (e) => {
+        if (e.target.classList.contains('draggable')) {
+            draggedClipart = e.target;
+            e.target.dataset.wasDragged = 'true'; // 드래그 중임을 표시
+            e.dataTransfer.setData('text/plain', e.target.dataset.drawingData);
             e.dataTransfer.effectAllowed = 'copy';
         }
     });
@@ -354,34 +405,34 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const imgSrc = e.dataTransfer.getData('text/plain');
                 const img = await loadImageWithCORS(imgSrc);
-                
-                // 현재 캔버스의 드로잉 상태 저장
+
+                // 현재 캔버스의 드로잉 상태 저장 (실행 취소용)
                 saveCanvasState();
-                
-                // 캔버스 크기에 맞게 이미지 그리기
+
+                // 클립아트를 드래그한 위치에 배치 (기존 드로잉 위에 오버레이)
                 try {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height); // 캔버스 초기화
-                    
-                    // 이미지를 캔버스 크기에 맞게 비율 유지하며 그리기
+                    // 캔버스 크기의 70%를 최대 크기로 설정 (더 크게)
+                    const targetSize = Math.min(canvas.width, canvas.height) * 0.7;
                     const scale = Math.min(
-                        canvas.width / img.width,
-                        canvas.height / img.height
+                        targetSize / img.width,
+                        targetSize / img.height
                     );
-                    
+
                     const scaledWidth = img.width * scale;
                     const scaledHeight = img.height * scale;
-                    
-                    // 이미지를 캔버스 중앙에 배치
-                    const x = (canvas.width - scaledWidth) / 2;
-                    const y = (canvas.height - scaledHeight) / 2;
-                    
-                    // 배경색을 흰색으로 설정
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    
-                    // 이미지를 배경으로 그리기
+
+                    // 드롭 위치를 중심으로 배치
+                    const rect = canvas.getBoundingClientRect();
+                    const mouseX = (e.clientX - rect.left) / currentZoom;
+                    const mouseY = (e.clientY - rect.top) / currentZoom;
+
+                    // 이미지의 중심이 마우스 위치에 오도록 조정
+                    const x = mouseX - (scaledWidth / 2);
+                    const y = mouseY - (scaledHeight / 2);
+
+                    // 기존 드로잉 위에 클립아트 오버레이
                     ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
-                    
+
                 } catch (err) {
                     console.warn('이미지 그리기 실패:', err);
                     restoreCanvasState();
@@ -418,41 +469,25 @@ document.addEventListener('DOMContentLoaded', () => {
         savedDrawingsContainer.innerHTML = '';
 
         drawings.forEach(drawing => {
-            const div = document.createElement('div');
-            div.className = 'relative group bg-gray-100 rounded-lg flex-shrink-0 w-48';
-            div.innerHTML = `
-                <div class="relative">
-                    <img src="${drawing.dataUrl}" alt="${drawing.name}" 
-                         class="w-48 h-32 object-contain p-2 bg-white rounded-lg shadow-sm"
-                         title="${drawing.name}">
-                    <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-lg">
-                        <button class="edit-drawing bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
-                                data-id="${drawing.id}">
-                            <span class="material-icons text-sm">edit</span>수정
-                        </button>
-                        <button class="delete-drawing bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
-                                data-id="${drawing.id}">
-                            <span class="material-icons text-sm">delete</span>삭제
-                        </button>
-                    </div>
-                </div>
-                <div class="pt-1 px-2 text-xs text-gray-600 truncate">${drawing.name}</div>
-            `;
+            const item = document.createElement('div');
+            item.className = 'relative flex-shrink-0';
 
-            // 그림 수정
-            div.querySelector('.edit-drawing').addEventListener('click', () => {
-                if (!confirm('현재 캔버스의 내용이 삭제되고 이 그림을 불러옵니다. 계속하시겠습니까?')) return;
+            const img = document.createElement('img');
+            img.src = drawing.dataUrl;
+            img.alt = drawing.name;
+            img.title = `${drawing.name} - 드래그해서 캔버스에 추가하거나 클릭해서 전체 교체`;
+            img.className = 'saved-drawing draggable w-48 h-32 object-contain p-2 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-move';
+            img.draggable = true;
+            img.dataset.drawingId = drawing.id;
+            img.dataset.drawingData = drawing.dataUrl;
 
-                const img = new Image();
-                img.onload = () => {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                };
-                img.src = drawing.dataUrl;
-            });
-
-            // 그림 삭제
-            div.querySelector('.delete-drawing').addEventListener('click', () => {
+            // X 삭제 버튼 (우측 상단)
+            const delBtn = document.createElement('button');
+            delBtn.className = 'absolute -top-1 -right-1 bg-white text-red-600 rounded-full w-6 h-6 flex items-center justify-center text-sm shadow hover:bg-red-50 z-10';
+            delBtn.title = '삭제';
+            delBtn.innerHTML = '&times;';
+            delBtn.addEventListener('click', (ev) => {
+                ev.stopPropagation();
                 if (!confirm('이 그림을 삭제하시겠습니까?')) return;
 
                 const drawings = JSON.parse(localStorage.getItem(DRAWINGS_KEY) || '[]');
@@ -461,90 +496,99 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadSavedDrawings();
             });
 
-            savedDrawingsContainer.appendChild(div);
+            // 전체 교체 버튼 (클릭 시)
+            img.addEventListener('click', (e) => {
+                // 드래그가 아닌 클릭인 경우에만
+                if (e.detail === 1) {
+                    setTimeout(() => {
+                        if (!img.dataset.wasDragged) {
+                            if (!confirm('현재 캔버스의 내용을 삭제하고 이 그림으로 전체 교체하시겠습니까?')) return;
+
+                            const loadImg = new Image();
+                            loadImg.onload = () => {
+                                saveCanvasState();
+                                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                                ctx.drawImage(loadImg, 0, 0, canvas.width, canvas.height);
+                            };
+                            loadImg.src = drawing.dataUrl;
+                        }
+                        delete img.dataset.wasDragged;
+                    }, 200);
+                }
+            });
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'pt-1 px-2 text-xs text-gray-600 truncate text-center';
+            nameDiv.textContent = drawing.name;
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'relative';
+            wrapper.appendChild(img);
+            wrapper.appendChild(delBtn);
+
+            item.appendChild(wrapper);
+            item.appendChild(nameDiv);
+            savedDrawingsContainer.appendChild(item);
         });
     }
 
     // 최대화 버튼 클릭 이벤트
     maximizeBtn.addEventListener('click', () => {
         const container = document.getElementById('drawing-container');
-        const canvasContainer = container.querySelector('.canvas-container');
-        
+        const wrapper = document.getElementById('canvas-wrapper');
+
         // 현재 드로잉 데이터 가져오기
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        
+
         container.classList.toggle('fixed');
         container.classList.toggle('inset-0');
         container.classList.toggle('z-50');
-        
+
         if (container.classList.contains('fixed')) {
-            // 최대화 상태일 때 스타일 적용
-            document.body.style.overflow = 'hidden'; // 스크롤 방지
-            container.style.backgroundColor = 'rgba(0, 0, 0, 0.9)'; // 어두운 배경
+            // 최대화 상태
+            document.body.style.overflow = 'hidden';
+            container.style.backgroundColor = 'rgba(0, 0, 0, 0.9)';
             container.style.padding = '2rem';
-            
-            // 컨트롤 영역 스타일 조정
+            container.style.overflowY = 'auto'; // 스크롤 가능하도록
+
+            // 컨트롤 영역 스타일
             const controls = container.querySelector('.controls');
-            controls.classList.add('bg-white', 'p-4', 'rounded-lg', 'shadow-lg', 'mb-6');
-            
-            // 최대화 상태일 때 캔버스 크기 조정
-            const containerWidth = container.clientWidth - 64; // 패딩 고려
-            const containerHeight = container.clientHeight - 280; // 헤더와 컨트롤 영역 고려
-            
-            // 16:9 비율 유지
-            const aspectRatio = 16 / 9;
-            let newWidth = containerWidth;
-            let newHeight = containerWidth / aspectRatio;
-            
-            if (newHeight > containerHeight) {
-                newHeight = containerHeight;
-                newWidth = containerHeight * aspectRatio;
-            }
-            
-            canvas.width = newWidth;
-            canvas.height = newHeight;
-            
-            // 캔버스를 컨테이너 중앙에 배치
-            canvasContainer.style.width = `${newWidth}px`;
-            canvasContainer.style.height = `${newHeight}px`;
-            canvasContainer.style.margin = 'auto';
-            canvasContainer.style.backgroundColor = 'white';
-            canvasContainer.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
-            
+            controls.classList.add('bg-white', 'p-4', 'rounded-lg', 'shadow-lg', 'mb-4');
+
+            // wrapper를 더 크게 (vh 기반)
+            wrapper.style.height = 'calc(100vh - 250px)';
+            wrapper.style.width = '100%';
+            wrapper.style.maxWidth = '1400px';
+            wrapper.style.margin = '0 auto';
+
             maximizeBtn.innerHTML = '<span class="material-icons">fullscreen_exit</span>작게 보기';
-            
-            // 캔버스 크기 조정 후 이미지 데이터 복원
-            setTimeout(() => {
-                resizeCanvas();
-                ctx.putImageData(imageData, 0, 0);
-            }, 100);
         } else {
             // 원래 상태로 복원
             document.body.style.overflow = '';
             container.style.backgroundColor = '';
             container.style.padding = '';
-            
-            // 컨트롤 영역 스타일 복원
+            container.style.overflowY = '';
+
             const controls = container.querySelector('.controls');
-            controls.classList.remove('bg-white', 'p-4', 'rounded-lg', 'shadow-lg', 'mb-6');
-            
-            canvasContainer.style.width = '';
-            canvasContainer.style.height = '';
-            canvasContainer.style.margin = '';
-            canvasContainer.style.backgroundColor = '';
-            canvasContainer.style.boxShadow = '';
-            
-            // 캔버스 크기 조정 후 이미지 데이터 복원
-            setTimeout(() => {
-                resizeCanvas();
-                ctx.putImageData(imageData, 0, 0);
-            }, 100);
-            
+            controls.classList.remove('bg-white', 'p-4', 'rounded-lg', 'shadow-lg', 'mb-4');
+
+            wrapper.style.height = '500px';
+            wrapper.style.width = '';
+            wrapper.style.maxWidth = '';
+            wrapper.style.margin = '';
+
             maximizeBtn.innerHTML = '<span class="material-icons">fullscreen</span>크게 보기';
         }
-        
-        // 저장된 캔버스 상태 복원
-        restoreCanvasState(savedState);
+
+        // 캔버스 크기 재조정 및 이미지 복원
+        setTimeout(() => {
+            resizeCanvas();
+            try {
+                ctx.putImageData(imageData, 0, 0);
+            } catch (e) {
+                console.warn('이미지 복원 실패:', e);
+            }
+        }, 100);
     });    // 초기 로드
     loadSavedDrawings();
     loadSavedCliparts(); // 저장된 클립아트 로드

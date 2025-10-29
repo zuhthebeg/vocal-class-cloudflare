@@ -13,6 +13,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ATTENDANCE_KEY = 'attendance';
 
+    // localStorage 모드 체크
+    const isDevelopmentPort = ['3000', '8000', '8080', '5000', '5500'].includes(window.location.port);
+    const isLocalhost = window.location.hostname === 'localhost' ||
+                       window.location.hostname === '127.0.0.1' ||
+                       window.location.hostname.startsWith('192.168.') ||
+                       window.location.hostname.startsWith('10.') ||
+                       !window.location.hostname;
+    const USE_LOCAL_STORAGE_ONLY = isLocalhost || isDevelopmentPort;
+
     // 캔버스 크기 설정 (반응형) with DPR-aware scaling
     function resizeCanvas() {
         const dpr = window.devicePixelRatio || 1;
@@ -150,51 +159,91 @@ document.addEventListener('DOMContentLoaded', () => {
     // 제출 버튼
     submitBtn.addEventListener('click', async () => {
         if (isCanvasBlank(canvas)) {
-            alert('서명을 해주세요.');
+            if (typeof showToast === 'function') {
+                showToast('서명을 해주세요.', 'error');
+            } else {
+                alert('서명을 해주세요.');
+            }
             return;
         }
 
         const signatureData = canvas.toDataURL(); // Base64 이미지 데이터
-        const studentName = (typeof getUser === 'function' && getUser()) ? getUser().name : 'Unknown';
+        const user = (typeof getUser === 'function' && getUser()) ? getUser() : null;
+        const studentName = user ? user.name : 'Unknown';
         const currentSessionId = sessionId || `manual-${Date.now()}`; // 세션 ID가 없으면 수동 생성
 
-        // (1) localStorage에도 저장 유지
-        const attendanceRecord = {
-            sessionId: currentSessionId,
-            studentName: studentName,
-            timestamp: new Date().toISOString(),
-            signature: signatureData
-        };
+        try {
+            if (typeof showLoading === 'function') showLoading(true);
 
-        let attendance = JSON.parse(localStorage.getItem(ATTENDANCE_KEY)) || [];
-        attendance.push(attendanceRecord);
-        localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(attendance));
+            if (USE_LOCAL_STORAGE_ONLY) {
+                // localStorage 모드
+                console.warn('🔧 개발 모드: 출석을 localStorage에 저장합니다.');
 
-        // (2) 원격 전송: 우선 window.GOOGLE_SCRIPT_URL 또는 window.LOCAL_ATTENDANCE_ENDPOINT 사용
-        const remoteScriptUrl = window.GOOGLE_SCRIPT_URL || null; // 사용자가 index나 README에서 설정할 수 있음
-        const localEndpoint = window.LOCAL_ATTENDANCE_ENDPOINT || null;
+                const existingAttendance = JSON.parse(localStorage.getItem(ATTENDANCE_KEY) || '[]');
 
-        if (remoteScriptUrl) {
-            await submitToGoogleSheet(studentName, currentSessionId, signatureData, remoteScriptUrl);
-        } else if (localEndpoint) {
-            try {
-                await fetch(localEndpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(attendanceRecord)
-                });
-                alert('출석이 로컬 엔드포인트로 전송되었습니다. ✅');
-            } catch (err) {
-                console.error('로컬 엔드포인트 전송 실패:', err);
-                alert('로컬 엔드포인트로 전송하는 동안 오류가 발생했습니다. ❌');
+                const newAttendance = {
+                    id: Date.now(),
+                    sessionId: currentSessionId,
+                    studentName: studentName,
+                    signature: signatureData,
+                    timestamp: new Date().toISOString(),
+                    date: new Date().toISOString().split('T')[0]
+                };
+
+                existingAttendance.push(newAttendance);
+                localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(existingAttendance));
+
+                if (typeof showLoading === 'function') showLoading(false);
+                if (typeof showToast === 'function') {
+                    showToast('출석이 성공적으로 기록되었습니다! (개발 모드)', 'success');
+                } else {
+                    alert('출석이 성공적으로 기록되었습니다! ✅');
+                }
+
+                // Navigate to student page after short delay
+                setTimeout(() => {
+                    window.location.href = '/student.html';
+                }, 1000);
+                return;
             }
-        } else {
-            // 원격 전송 설정이 없으면 로컬 저장만 유지하고 안내
-            console.info('원격 전송 URL이 설정되어 있지 않아 로컬에만 저장했습니다. Configure window.GOOGLE_SCRIPT_URL to enable remote submission.');
-            alert('출석이 로컬에 저장되었습니다. (원격 전송은 구성되지 않음) ✅');
-        }
 
-        // 학생 페이지로 이동
-        window.location.href = 'student.html';
+            // API 모드
+            const response = await fetch('/api/attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: currentSessionId,
+                    studentName: studentName,
+                    bookingId: null, // Can be linked if available
+                    signature: signatureData
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || '출석 제출 실패');
+            }
+
+            if (typeof showLoading === 'function') showLoading(false);
+            if (typeof showToast === 'function') {
+                showToast('출석이 성공적으로 기록되었습니다!', 'success');
+            } else {
+                alert('출석이 성공적으로 기록되었습니다! ✅');
+            }
+
+            // Navigate to student page after short delay
+            setTimeout(() => {
+                window.location.href = '/student.html';
+            }, 1000);
+        } catch (error) {
+            console.error('Attendance submission error:', error);
+            if (typeof showLoading === 'function') showLoading(false);
+            if (typeof handleApiError === 'function') {
+                handleApiError(error);
+            } else {
+                alert('출석 제출 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
     });
 });
