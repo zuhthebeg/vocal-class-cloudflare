@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Navigate to student page after short delay
                 setTimeout(() => {
-                    window.location.href = '/student.html';
+                    window.location.href = 'student.html';
                 }, 1000);
                 return;
             }
