@@ -1,13 +1,2 @@
-# Static HTML files
-/teacher.html /teacher.html 200
-/student.html /student.html 200
-/signature.html /signature.html 200
-/tools.html /tools.html 200
-/index.html /index.html 200
-
-# CSS and JS files
-/css/* /css/:splat 200
-/js/* /js/:splat 200
-
-# API routes (Functions)
-/api/* /api/:splat 200
+# Cloudflare Pages automatically serves index.html for /
+# No redirects needed - static files are served directly
