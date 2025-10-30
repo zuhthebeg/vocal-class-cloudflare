@@ -1,7 +1,7 @@
 // js/student.js
 
 document.addEventListener('DOMContentLoaded', async () => {
-    checkAuth(['student']); // 학생만 접근 가능
+    // checkAuth(['student']); // 시연용으로 임시 비활성화
     const user = getUser();
     if (user) {
         document.getElementById('user-name').textContent = `환영합니다, ${user.name}님`;
