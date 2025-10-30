@@ -312,7 +312,7 @@ function handleApiError(error, context = '') {
     else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
         message = '인증이 필요합니다. 다시 로그인해주세요.';
         setTimeout(() => {
-            window.location.href = '/index.html';
+            window.location.href = '/';
         }, 2000);
     }
     else if (error.message.includes('403') || error.message.includes('Forbidden')) {

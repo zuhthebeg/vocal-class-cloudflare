@@ -1,10 +1,10 @@
 name = "vocal-class"
 compatibility_date = "2025-10-28"
-pages_build_output_dir = "."
+pages_build_output_dir = "public"
 
 # D1 데이터베이스 바인딩
 [[d1_databases]]
-binding = "vocal_class_db"
+binding = "DB"
 database_name = "vocal-class-db"
 database_id = "9f90ac1e-f6d8-4a9b-9e9d-2ae5548ac054"
 
