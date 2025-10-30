@@ -27,11 +27,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                        !window.location.hostname;
     const USE_LOCAL_STORAGE_ONLY = isLocalhost || isDevelopmentPort;
 
-    // 데이터 구조: 날짜 기반
-    let teacherSchedule = {}; // {"2025-10-29": ["10:00", "10:30"], ...}
+    // 데이터 구조
     let bookings = []; // 전체 예약 목록
-    let bookedSlots = new Set(); // 예약된 시간 슬롯 ("2025-10-29-10:00")
-    let myBookedSlots = new Set(); // 내가 예약한 시간 슬롯
+    let myBookings = []; // 내 예약 목록
     let teacherId = null;
 
     // 달력 상태
@@ -39,8 +37,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentMonth = new Date().getMonth(); // 0-11
     let selectedDate = null; // 선택된 날짜 (YYYY-MM-DD)
 
-    const TEACHER_SCHEDULE_KEY = 'teacherSchedule';
     const BOOKINGS_KEY = 'bookings';
+
+    // 시간 생성 (9:00 ~ 22:00, 30분 단위)
+    function generateTimeOptions() {
+        const times = [];
+        for (let hour = 9; hour <= 22; hour++) {
+            times.push(`${String(hour).padStart(2, '0')}:00`);
+            if (hour < 22) {
+                times.push(`${String(hour).padStart(2, '0')}:30`);
+            }
+        }
+        return times;
+    }
 
     /**
      * 달력 렌더링
@@ -74,15 +83,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 날짜들
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const hasSchedule = teacherSchedule[dateStr] && teacherSchedule[dateStr].length > 0;
-            const hasMyBooking = Array.from(myBookedSlots).some(slot => slot.startsWith(dateStr));
+
+            // 내가 예약한 날짜 체크
+            const hasMyBooking = myBookings.some(b => b.day === dateStr && b.status !== 'cancelled' && b.status !== 'rejected');
             const isToday = dateStr === new Date().toISOString().split('T')[0];
             const isSelected = dateStr === selectedDate;
 
             let classNames = 'p-2 border rounded cursor-pointer hover:bg-indigo-50 transition-colors';
             if (isToday) classNames += ' border-indigo-500 font-bold';
             if (isSelected) classNames += ' bg-indigo-200';
-            if (hasSchedule) classNames += ' bg-green-100'; // 강사가 스케줄 설정한 날
             if (hasMyBooking) classNames += ' bg-blue-300'; // 내가 예약한 날
 
             calendarHTML += `<div class="calendar-day ${classNames}" data-date="${dateStr}">${day}</div>`;
@@ -102,62 +111,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * 선택된 날짜의 시간 슬롯 표시
+     * 선택된 날짜의 시간 선택 패널 표시
      */
     function showTimeslotPanel() {
         if (!selectedDate) return;
 
         timeslotPanel.classList.remove('hidden');
-        selectedDateTitle.textContent = `${selectedDate} 예약 가능 시간`;
+        selectedDateTitle.textContent = `${selectedDate} 예약 요청`;
 
-        const availableTimes = teacherSchedule[selectedDate] || [];
+        // 시간 선택 UI 생성
+        const times = generateTimeOptions();
 
-        if (availableTimes.length === 0) {
-            timeslotContainer.innerHTML = '<p class="text-gray-500 col-span-full">이 날짜에는 예약 가능한 시간이 없습니다.</p>';
-            return;
-        }
+        timeslotContainer.innerHTML = `
+            <div class="col-span-full mb-4">
+                <label for="time-select" class="block text-sm font-medium text-gray-700 mb-2">
+                    원하시는 수업 시간을 선택하세요
+                </label>
+                <select id="time-select" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">시간 선택...</option>
+                    ${times.map(time => `<option value="${time}">${time}</option>`).join('')}
+                </select>
+            </div>
+            <button id="request-booking-btn" class="col-span-full btn btn-primary w-full">
+                예약 요청하기
+            </button>
+        `;
 
-        timeslotContainer.innerHTML = '';
-        availableTimes.forEach(time => {
-            const slotKey = `${selectedDate}-${time}`;
-            const isMyBooking = myBookedSlots.has(slotKey);
-            const isBooked = bookedSlots.has(slotKey);
-
-            const slot = document.createElement('div');
-            let slotClass = 'p-2 rounded text-center cursor-pointer transition-all text-sm';
-
-            if (isMyBooking) {
-                // 내가 이미 예약한 시간
-                slotClass += ' bg-blue-500 text-white cursor-default';
-                slot.textContent = `${time} (내 예약)`;
-                slot.title = '이미 예약한 시간입니다.';
-            } else if (isBooked) {
-                // 다른 사람이 예약한 시간
-                slotClass += ' bg-gray-300 text-gray-600 cursor-not-allowed';
-                slot.textContent = `${time} (예약됨)`;
-                slot.title = '다른 수강생이 예약한 시간입니다.';
-            } else {
-                // 예약 가능한 시간
-                slotClass += ' bg-green-100 hover:bg-green-200';
-                slot.textContent = time;
-                slot.dataset.date = selectedDate;
-                slot.dataset.time = time;
-                slot.addEventListener('click', handleBooking);
-            }
-
-            slot.className = slotClass;
-            timeslotContainer.appendChild(slot);
-        });
+        // 예약 요청 버튼 이벤트
+        document.getElementById('request-booking-btn').addEventListener('click', handleBookingRequest);
     }
 
     /**
-     * 예약 처리
+     * 예약 요청 처리
      */
-    async function handleBooking(event) {
-        const date = event.target.dataset.date;
-        const time = event.target.dataset.time;
+    async function handleBookingRequest() {
+        const timeSelect = document.getElementById('time-select');
+        const time = timeSelect.value;
 
-        if (!confirm(`${date} ${time} 수업을 예약하시겠습니까?`)) {
+        if (!time) {
+            if (typeof showToast === 'function') {
+                showToast('시간을 선택해주세요.', 'error');
+            } else {
+                alert('시간을 선택해주세요.');
+            }
+            return;
+        }
+
+        if (!confirm(`${selectedDate} ${time} 수업 예약을 요청하시겠습니까?\n\n강사 승인 후 확정됩니다.`)) {
             return;
         }
 
@@ -166,28 +166,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (USE_LOCAL_STORAGE_ONLY) {
                 // localStorage 모드
-                console.warn('🔧 개발 모드: 예약을 localStorage에 저장합니다.');
+                console.warn('🔧 개발 모드: 예약 요청을 localStorage에 저장합니다.');
 
                 const existingBookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
 
                 // 중복 예약 체크
                 const duplicate = existingBookings.find(b =>
                     b.studentName === user.name &&
-                    b.day === date &&
+                    b.day === selectedDate &&
                     b.time === time &&
-                    b.status !== 'cancelled'
+                    b.status !== 'cancelled' &&
+                    b.status !== 'rejected'
                 );
 
                 if (duplicate) {
-                    throw new Error('이미 예약된 시간입니다.');
+                    throw new Error('이미 예약 요청한 시간입니다.');
                 }
 
                 const newBooking = {
                     id: Date.now(),
                     studentName: user.name,
-                    day: date,
+                    day: selectedDate,
                     time: time,
-                    status: 'confirmed',
+                    status: 'pending', // 승인 대기 중
                     bookingDate: new Date().toISOString().split('T')[0]
                 };
 
@@ -196,9 +197,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (typeof showLoading === 'function') showLoading(false);
                 if (typeof showToast === 'function') {
-                    showToast('예약이 완료되었습니다! (개발 모드)', 'success');
+                    showToast('예약 요청이 완료되었습니다! 강사 승인을 기다려주세요. (개발 모드)', 'success');
                 } else {
-                    alert('예약이 완료되었습니다!');
+                    alert('예약 요청이 완료되었습니다! 강사 승인을 기다려주세요.');
                 }
 
                 // 패널 닫기
@@ -217,22 +218,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 body: JSON.stringify({
                     studentId: user.id,
                     teacherId: teacherId,
-                    bookingDate: date,
-                    timeSlot: time
+                    bookingDate: selectedDate,
+                    timeSlot: time,
+                    status: 'pending'
                 }),
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || '예약 실패');
+                throw new Error(data.error || '예약 요청 실패');
             }
 
             if (typeof showLoading === 'function') showLoading(false);
             if (typeof showToast === 'function') {
-                showToast('예약이 완료되었습니다!', 'success');
+                showToast('예약 요청이 완료되었습니다! 강사 승인을 기다려주세요.', 'success');
             } else {
-                alert('예약이 완료되었습니다!');
+                alert('예약 요청이 완료되었습니다! 강사 승인을 기다려주세요.');
             }
 
             // 패널 닫기
@@ -242,12 +244,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadBookings();
             renderCalendar();
         } catch (error) {
-            console.error('Booking error:', error);
+            console.error('Booking request error:', error);
             if (typeof showLoading === 'function') showLoading(false);
             if (typeof handleApiError === 'function') {
                 handleApiError(error);
             } else {
-                alert('예약 중 오류가 발생했습니다: ' + error.message);
+                alert('예약 요청 중 오류가 발생했습니다: ' + error.message);
             }
         }
     }
@@ -258,10 +260,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderMyBookings() {
         myBookingList.innerHTML = '';
 
-        const myBookings = bookings.filter(b =>
-            b.studentName === user.name || b.student_name === user.name
-        );
-
         if (myBookings.length === 0) {
             myBookingList.innerHTML = '<p class="text-gray-500">예약된 수업이 없습니다.</p>';
             return;
@@ -269,27 +267,62 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         myBookings.forEach(booking => {
             const bookingItem = document.createElement('div');
-            const statusClass = booking.status === 'completed' ? 'bg-green-100' :
-                               booking.status === 'cancelled' ? 'bg-gray-100' : 'bg-blue-50';
-            const statusText = booking.status === 'completed' ? '✅ 완료' :
-                              booking.status === 'cancelled' ? '❌ 취소됨' :
-                              booking.status === 'confirmed' ? '⏳ 확정' : '⏱️ 대기중';
+
+            // 상태별 스타일링
+            let statusClass, statusText, statusIcon;
+            switch(booking.status) {
+                case 'pending':
+                    statusClass = 'bg-yellow-50 border-yellow-200';
+                    statusText = '승인 대기중';
+                    statusIcon = '⏳';
+                    break;
+                case 'approved':
+                    statusClass = 'bg-green-50 border-green-200';
+                    statusText = '승인됨';
+                    statusIcon = '✅';
+                    break;
+                case 'rejected':
+                    statusClass = 'bg-red-50 border-red-200';
+                    statusText = '거절됨';
+                    statusIcon = '❌';
+                    break;
+                case 'completed':
+                    statusClass = 'bg-blue-50 border-blue-200';
+                    statusText = '완료';
+                    statusIcon = '✓';
+                    break;
+                case 'cancelled':
+                    statusClass = 'bg-gray-50 border-gray-200';
+                    statusText = '취소됨';
+                    statusIcon = '⊘';
+                    break;
+                default:
+                    statusClass = 'bg-blue-50 border-blue-200';
+                    statusText = '확정';
+                    statusIcon = '✓';
+            }
 
             // localStorage 형식과 API 형식 모두 지원
             const day = booking.day || booking.booking_date || '';
             const time = booking.time || booking.time_slot || '';
             const bookingDate = booking.bookingDate || booking.booking_date || day;
 
-            bookingItem.className = `p-3 border rounded-md shadow-sm ${statusClass}`;
+            bookingItem.className = `p-3 border-2 rounded-md shadow-sm ${statusClass}`;
             bookingItem.innerHTML = `
                 <div class="flex justify-between items-start">
-                    <div>
-                        <p><strong>${day}</strong></p>
+                    <div class="flex-1">
+                        <p class="font-semibold text-gray-800">${day}</p>
                         <p class="text-sm text-gray-600">시간: ${time}</p>
-                        <p class="text-sm text-gray-500">예약일: ${bookingDate}</p>
-                        <p class="text-sm font-semibold">${statusText}</p>
+                        <p class="text-xs text-gray-500">요청일: ${bookingDate}</p>
+                        <p class="text-sm font-semibold mt-1 ${
+                            booking.status === 'approved' ? 'text-green-600' :
+                            booking.status === 'pending' ? 'text-yellow-600' :
+                            booking.status === 'rejected' ? 'text-red-600' : 'text-gray-600'
+                        }">
+                            ${statusIcon} ${statusText}
+                        </p>
                     </div>
-                    ${booking.status !== 'cancelled' && booking.status !== 'completed' ? `
+                    ${booking.status === 'pending' || booking.status === 'approved' ? `
                         <button class="cancel-booking-btn btn btn-danger btn-sm" data-booking-id="${booking.id}">
                             취소
                         </button>
@@ -371,47 +404,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * 강사 스케줄 로드
-     */
-    async function loadTeacherSchedule() {
-        try {
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                console.warn('🔧 개발 모드: localStorage에서 강사 스케줄을 로드합니다.');
-                const saved = localStorage.getItem(TEACHER_SCHEDULE_KEY);
-                teacherSchedule = saved ? JSON.parse(saved) : {};
-                renderCalendar();
-                return;
-            }
-
-            // API 모드 - 날짜 범위로 조회 (현재 달부터 3개월)
-            teacherId = 1; // TODO: 강사 선택 기능 추가 시 변경
-
-            const today = new Date();
-            const startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-            const endDate = new Date(today.getFullYear(), today.getMonth() + 3, 0).toISOString().split('T')[0];
-
-            const response = await fetch(`/api/schedule?teacherId=${teacherId}&startDate=${startDate}&endDate=${endDate}`);
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to load schedule');
-            }
-
-            // API에서 반환된 날짜별 그룹화 데이터 사용
-            teacherSchedule = data.schedulesByDate || {};
-
-            renderCalendar();
-        } catch (error) {
-            console.error('Load schedule error:', error);
-            if (typeof showToast === 'function') {
-                showToast('스케줄을 불러오는데 실패했습니다.', 'error');
-            }
-            renderCalendar();
-        }
-    }
-
-    /**
      * 내 예약 로드
      */
     async function loadBookings() {
@@ -421,19 +413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.warn('🔧 개발 모드: localStorage에서 예약을 로드합니다.');
                 const allBookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
                 bookings = allBookings;
-
-                // 예약된 슬롯 수집
-                bookedSlots.clear();
-                myBookedSlots.clear();
-                allBookings.forEach(booking => {
-                    if (booking.status !== 'cancelled') {
-                        const slotKey = `${booking.day}-${booking.time}`;
-                        bookedSlots.add(slotKey);
-                        if (booking.studentName === user.name) {
-                            myBookedSlots.add(slotKey);
-                        }
-                    }
-                });
+                myBookings = allBookings.filter(b => b.studentName === user.name);
 
                 renderMyBookings();
                 return;
@@ -448,21 +428,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             bookings = data.bookings || [];
-
-            // 예약된 슬롯 수집
-            bookedSlots.clear();
-            myBookedSlots.clear();
-            bookings.forEach(booking => {
-                if (booking.status !== 'cancelled') {
-                    const date = booking.booking_date || booking.day;
-                    const time = booking.time_slot || booking.time;
-                    const slotKey = `${date}-${time}`;
-                    bookedSlots.add(slotKey);
-                    if (booking.student_name === user.name || booking.studentName === user.name) {
-                        myBookedSlots.add(slotKey);
-                    }
-                }
-            });
+            myBookings = bookings.filter(b =>
+                b.student_name === user.name || b.studentName === user.name
+            );
 
             renderMyBookings();
         } catch (error) {
@@ -501,6 +469,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // 초기 렌더링
-    await loadTeacherSchedule();
     await loadBookings();
+    renderCalendar();
 });
