@@ -1,14 +1,21 @@
 {
-  "name": "vocal-class-local-server",
+  "name": "vocal-class",
   "version": "1.0.0",
-  "description": "Local server for testing attendance submission",
-  "main": "server.js",
+  "description": "Vocal class booking and attendance system",
   "scripts": {
+    "dev": "wrangler pages dev public --port=8788",
+    "dev:debug": "wrangler pages dev public --port=8788 --log-level=debug",
+    "deploy": "wrangler pages deploy public",
+    "db:init": "wrangler d1 execute vocal-class-db --file=./schema.sql",
     "start": "node server.js"
   },
   "dependencies": {
     "body-parser": "^1.20.2",
     "csv-stringify": "^6.0.5",
     "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1",
+    "wrangler": "^3.0.0"
   }
 }

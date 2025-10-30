@@ -742,7 +742,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     generateQrBtn.addEventListener('click', () => {
         const sessionId = `session-${Date.now()}`; // 현재 시간 기반 세션 ID
-        const qrData = `${window.location.origin}/signature.html?sessionId=${sessionId}`;
+        const qrData = `${window.location.origin}/signature?sessionId=${sessionId}`;
 
         qrcodeDiv.innerHTML = ''; // 기존 QR 코드 제거
         new QRCode(qrcodeDiv, {
