@@ -9,9 +9,10 @@ interface BookingRequest {
   teacherId: number;
   bookingDate: string; // 'YYYY-MM-DD'
   timeSlot: string; // 'HH:MM'
+  status?: string; // Optional, defaults to 'pending'
 }
 
-// POST: 예약 생성
+// POST: 예약 요청 생성
 export async function onRequestPost(context: { request: Request; env: Env }) {
   try {
     const { request, env } = context;
@@ -40,53 +41,18 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
       });
     }
 
-    // 스케줄이 존재하는지 확인
-    const schedule = await env.DB.prepare(`
-      SELECT id FROM schedules
-      WHERE teacher_id = ? AND specific_date = ? AND time_slot = ? AND is_available = 1
-    `)
-      .bind(data.teacherId, data.bookingDate, data.timeSlot)
-      .first();
-
-    if (!schedule) {
-      return new Response(
-        JSON.stringify({ error: 'Schedule not available for this time slot' }),
-        {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // 중복 예약 확인 (같은 날짜/시간에 다른 학생의 예약이 있는지)
-    const existingBooking = await env.DB.prepare(`
-      SELECT id FROM bookings
-      WHERE teacher_id = ? AND booking_date = ? AND time_slot = ? AND status != 'cancelled'
-    `)
-      .bind(data.teacherId, data.bookingDate, data.timeSlot)
-      .first();
-
-    if (existingBooking) {
-      return new Response(
-        JSON.stringify({ error: 'Time slot already booked' }),
-        {
-          status: 409,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // 같은 학생이 이미 예약했는지 확인
+    // 같은 학생이 같은 시간에 이미 예약 요청했는지 확인 (pending or approved)
     const studentBooking = await env.DB.prepare(`
       SELECT id FROM bookings
-      WHERE student_id = ? AND booking_date = ? AND time_slot = ? AND status != 'cancelled'
+      WHERE student_id = ? AND booking_date = ? AND time_slot = ?
+      AND status IN ('pending', 'approved')
     `)
       .bind(data.studentId, data.bookingDate, data.timeSlot)
       .first();
 
     if (studentBooking) {
       return new Response(
-        JSON.stringify({ error: 'You have already booked this time slot' }),
+        JSON.stringify({ error: 'You have already requested this time slot' }),
         {
           status: 409,
           headers: { 'Content-Type': 'application/json' },
@@ -94,19 +60,20 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
       );
     }
 
-    // 예약 생성
+    // 예약 요청 생성 (기본 상태: pending)
+    const status = data.status || 'pending';
     const result = await env.DB.prepare(`
       INSERT INTO bookings (student_id, teacher_id, booking_date, time_slot, status)
-      VALUES (?, ?, ?, ?, 'confirmed')
+      VALUES (?, ?, ?, ?, ?)
     `)
-      .bind(data.studentId, data.teacherId, data.bookingDate, data.timeSlot)
+      .bind(data.studentId, data.teacherId, data.bookingDate, data.timeSlot, status)
       .run();
 
     return new Response(
       JSON.stringify({
         ok: true,
         bookingId: result.meta.last_row_id,
-        message: 'Booking created successfully',
+        message: 'Booking request created successfully',
       }),
       {
         status: 201,
@@ -182,6 +149,93 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
     );
   } catch (error) {
     console.error('Booking fetch error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  }
+}
+
+// PATCH: 예약 상태 업데이트 (승인/거절)
+export async function onRequestPatch(context: { request: Request; env: Env }) {
+  try {
+    const { request, env } = context;
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split('/');
+
+    // /api/bookings/{id}/approve or /api/bookings/{id}/reject
+    const bookingId = pathParts[pathParts.length - 2];
+    const action = pathParts[pathParts.length - 1];
+
+    if (!bookingId || !action) {
+      return new Response(JSON.stringify({ error: 'Invalid request path' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 예약이 존재하는지 확인
+    const booking = await env.DB.prepare(`
+      SELECT status FROM bookings WHERE id = ?
+    `)
+      .bind(bookingId)
+      .first();
+
+    if (!booking) {
+      return new Response(
+        JSON.stringify({ error: 'Booking not found' }),
+        {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // 이미 처리된 예약인지 확인
+    if (booking.status !== 'pending') {
+      return new Response(
+        JSON.stringify({ error: `Booking is already ${booking.status}` }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // 상태 업데이트
+    let newStatus: string;
+    if (action === 'approve') {
+      newStatus = 'approved';
+    } else if (action === 'reject') {
+      newStatus = 'rejected';
+    } else {
+      return new Response(
+        JSON.stringify({ error: 'Invalid action. Use /approve or /reject' }),
+        {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    await env.DB.prepare(`
+      UPDATE bookings SET status = ? WHERE id = ?
+    `)
+      .bind(newStatus, bookingId)
+      .run();
+
+    return new Response(
+      JSON.stringify({ ok: true, message: `Booking ${newStatus}`, status: newStatus }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (error) {
+    console.error('Booking update error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       {
