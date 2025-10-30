@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Navigate to student page after short delay
                 setTimeout(() => {
-                    window.location.href = 'student';
+                    window.location.href = 'student.html';
                 }, 1000);
                 return;
             }
@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Navigate to student page after short delay
             setTimeout(() => {
-                window.location.href = '/student';
+                window.location.href = 'student.html';
             }, 1000);
         } catch (error) {
             console.error('Attendance submission error:', error);
