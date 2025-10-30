@@ -16,9 +16,12 @@ function csvLine(arr) {
 }
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8788;
 
 app.use(bodyParser.json({limit: '10mb'})); // signature images may be large
+
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, 'public')))
 
 const DATA_DIR = path.join(__dirname, 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);

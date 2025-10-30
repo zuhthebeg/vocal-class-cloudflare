@@ -6,7 +6,12 @@
       "Bash(npx playwright install:*)",
       "Bash(node test-browser.js:*)",
       "Bash(wrangler pages dev:*)",
-      "Bash(node test-quick.js:*)"
+      "Bash(node test-quick.js:*)",
+      "Bash(node test-login.js:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(npm start)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

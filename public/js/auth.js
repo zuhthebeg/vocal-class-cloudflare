@@ -56,9 +56,9 @@ async function login(name, role) {
             // 페이지 이동
             setTimeout(() => {
                 if (role === 'teacher') {
-                    window.location.href = 'teacher';
+                    window.location.href = 'teacher.html';
                 } else {
-                    window.location.href = 'student';
+                    window.location.href = 'student.html';
                 }
             }, 500);
             return;
@@ -109,9 +109,9 @@ async function login(name, role) {
         // Redirect based on role
         setTimeout(() => {
             if (role === 'teacher') {
-                window.location.href = 'teacher';
+                window.location.href = 'teacher.html';
             } else {
-                window.location.href = 'student';
+                window.location.href = 'student.html';
             }
         }, 500);
     } catch (error) {
@@ -132,7 +132,7 @@ async function login(name, role) {
  */
 function logout() {
     localStorage.removeItem(USER_KEY);
-    window.location.href = '/';
+    window.location.href = 'index.html';
 }
 
 /**
@@ -152,12 +152,12 @@ function checkAuth(allowedRoles = []) {
     const user = getUser();
     if (!user) {
         alert('로그인이 필요합니다.');
-        window.location.href = '/';
+        window.location.href = 'index.html';
         return;
     }
     if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
         alert('이 페이지에 접근할 권한이 없습니다.');
-        window.location.href = '/';
+        window.location.href = 'index.html';
         return;
     }
 }
