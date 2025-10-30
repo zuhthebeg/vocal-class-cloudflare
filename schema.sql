@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     teacher_id INTEGER NOT NULL,
     booking_date DATE NOT NULL, -- 예약한 날짜 'YYYY-MM-DD'
     time_slot TEXT NOT NULL, -- 예약한 시간 'HH:MM'
-    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'confirmed', 'cancelled', 'completed')),
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'cancelled', 'completed')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES users(id),
     FOREIGN KEY (teacher_id) REFERENCES users(id),
