@@ -182,7 +182,7 @@
     <script src="js/examples.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            checkAuth(); // 공통 인증 체크
+            // checkAuth(); // 시연용으로 임시 비활성화
             const user = getUser();
             if (user) {
                 document.getElementById('user-name').textContent = `환영합니다, ${user.name}님`;
