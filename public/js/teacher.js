@@ -666,16 +666,81 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
 
+                // 상태별로 정렬: pending -> approved -> rejected -> cancelled
+                const sortOrder = { 'pending': 0, 'approved': 1, 'completed': 2, 'rejected': 3, 'cancelled': 4 };
+                bookings.sort((a, b) => (sortOrder[a.status] || 99) - (sortOrder[b.status] || 99));
+
                 bookings.forEach(booking => {
                     const bookingItem = document.createElement('div');
-                    const statusClass = booking.status === 'cancelled' ? 'bg-gray-100' : 'bg-blue-50';
-                    bookingItem.className = `p-3 border rounded-md shadow-sm ${statusClass}`;
+
+                    // 상태별 스타일링
+                    let statusClass, statusText, statusIcon;
+                    switch(booking.status) {
+                        case 'pending':
+                            statusClass = 'bg-yellow-50 border-yellow-200 border-2';
+                            statusText = '승인 대기중';
+                            statusIcon = '⏳';
+                            break;
+                        case 'approved':
+                            statusClass = 'bg-green-50 border-green-200';
+                            statusText = '승인됨';
+                            statusIcon = '✅';
+                            break;
+                        case 'rejected':
+                            statusClass = 'bg-red-50 border-red-200';
+                            statusText = '거절됨';
+                            statusIcon = '❌';
+                            break;
+                        case 'completed':
+                            statusClass = 'bg-blue-50 border-blue-200';
+                            statusText = '완료';
+                            statusIcon = '✓';
+                            break;
+                        case 'cancelled':
+                            statusClass = 'bg-gray-50 border-gray-200';
+                            statusText = '취소됨';
+                            statusIcon = '⊘';
+                            break;
+                        default:
+                            statusClass = 'bg-blue-50 border-blue-200';
+                            statusText = '확정';
+                            statusIcon = '✓';
+                    }
+
+                    bookingItem.className = `p-4 border rounded-md shadow-sm ${statusClass}`;
                     bookingItem.innerHTML = `
-                        <p><strong>${booking.studentName}</strong>님 - ${booking.day} ${booking.time}</p>
-                        <p class="text-sm text-gray-600">예약일: ${booking.bookingDate || ''}</p>
-                        <p class="text-xs text-gray-500">${booking.status === 'cancelled' ? '취소됨' : '확정'}</p>
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <p class="font-semibold text-lg">${booking.studentName}님</p>
+                                <p class="text-gray-700">${booking.day} ${booking.time}</p>
+                                <p class="text-sm text-gray-600">요청일: ${booking.bookingDate || ''}</p>
+                                <p class="text-sm font-semibold mt-1 ${
+                                    booking.status === 'approved' ? 'text-green-600' :
+                                    booking.status === 'pending' ? 'text-yellow-600' :
+                                    booking.status === 'rejected' ? 'text-red-600' : 'text-gray-600'
+                                }">${statusIcon} ${statusText}</p>
+                            </div>
+                            ${booking.status === 'pending' ? `
+                                <div class="flex gap-2">
+                                    <button class="approve-booking-btn btn btn-success btn-sm" data-booking-id="${booking.id}">
+                                        승인
+                                    </button>
+                                    <button class="reject-booking-btn btn btn-danger btn-sm" data-booking-id="${booking.id}">
+                                        거절
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
                     `;
                     bookingList.appendChild(bookingItem);
+                });
+
+                // 승인/거절 버튼 이벤트 리스너 추가
+                document.querySelectorAll('.approve-booking-btn').forEach(btn => {
+                    btn.addEventListener('click', handleApproveBooking);
+                });
+                document.querySelectorAll('.reject-booking-btn').forEach(btn => {
+                    btn.addEventListener('click', handleRejectBooking);
                 });
 
                 renderCalendar(); // 달력 다시 렌더링 (예약된 시간 표시 반영)
@@ -734,6 +799,138 @@ document.addEventListener('DOMContentLoaded', async () => {
         } catch (error) {
             console.error('Load bookings error:', error);
             bookingList.innerHTML = '<p class="text-red-500">예약 현황을 불러오는데 실패했습니다.</p>';
+        }
+    }
+
+    /**
+     * 예약 승인 처리
+     */
+    async function handleApproveBooking(event) {
+        const bookingId = parseInt(event.target.dataset.bookingId);
+
+        if (!confirm('이 예약을 승인하시겠습니까?')) {
+            return;
+        }
+
+        try {
+            if (typeof showLoading === 'function') showLoading(true);
+
+            if (USE_LOCAL_STORAGE_ONLY) {
+                // localStorage 모드
+                console.warn('🔧 개발 모드: localStorage에서 예약을 승인합니다.');
+
+                const existingBookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
+                const booking = existingBookings.find(b => b.id === bookingId);
+
+                if (booking) {
+                    booking.status = 'approved';
+                    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(existingBookings));
+                }
+
+                if (typeof showLoading === 'function') showLoading(false);
+                if (typeof showToast === 'function') {
+                    showToast('예약이 승인되었습니다! (개발 모드)', 'success');
+                } else {
+                    alert('예약이 승인되었습니다!');
+                }
+
+                await renderBookings();
+                return;
+            }
+
+            // API 모드
+            const response = await fetch(`/api/bookings/${bookingId}/approve`, {
+                method: 'PATCH',
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || '승인 실패');
+            }
+
+            if (typeof showLoading === 'function') showLoading(false);
+            if (typeof showToast === 'function') {
+                showToast('예약이 승인되었습니다!', 'success');
+            } else {
+                alert('예약이 승인되었습니다!');
+            }
+
+            await renderBookings();
+        } catch (error) {
+            console.error('Approve booking error:', error);
+            if (typeof showLoading === 'function') showLoading(false);
+            if (typeof handleApiError === 'function') {
+                handleApiError(error);
+            } else {
+                alert('예약 승인 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+    }
+
+    /**
+     * 예약 거절 처리
+     */
+    async function handleRejectBooking(event) {
+        const bookingId = parseInt(event.target.dataset.bookingId);
+
+        if (!confirm('이 예약을 거절하시겠습니까?')) {
+            return;
+        }
+
+        try {
+            if (typeof showLoading === 'function') showLoading(true);
+
+            if (USE_LOCAL_STORAGE_ONLY) {
+                // localStorage 모드
+                console.warn('🔧 개발 모드: localStorage에서 예약을 거절합니다.');
+
+                const existingBookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
+                const booking = existingBookings.find(b => b.id === bookingId);
+
+                if (booking) {
+                    booking.status = 'rejected';
+                    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(existingBookings));
+                }
+
+                if (typeof showLoading === 'function') showLoading(false);
+                if (typeof showToast === 'function') {
+                    showToast('예약이 거절되었습니다. (개발 모드)', 'info');
+                } else {
+                    alert('예약이 거절되었습니다.');
+                }
+
+                await renderBookings();
+                return;
+            }
+
+            // API 모드
+            const response = await fetch(`/api/bookings/${bookingId}/reject`, {
+                method: 'PATCH',
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || '거절 실패');
+            }
+
+            if (typeof showLoading === 'function') showLoading(false);
+            if (typeof showToast === 'function') {
+                showToast('예약이 거절되었습니다.', 'info');
+            } else {
+                alert('예약이 거절되었습니다.');
+            }
+
+            await renderBookings();
+        } catch (error) {
+            console.error('Reject booking error:', error);
+            if (typeof showLoading === 'function') showLoading(false);
+            if (typeof handleApiError === 'function') {
+                handleApiError(error);
+            } else {
+                alert('예약 거절 중 오류가 발생했습니다: ' + error.message);
+            }
         }
     }
 
