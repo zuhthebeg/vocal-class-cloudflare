@@ -119,29 +119,61 @@ compatibility_date = "2025-10-11"
 - [x] 로컬 D1 데이터베이스 스키마 적용 (`wrangler d1 execute vocal-class-db --local --file=./schema.sql`)
 - [x] 데이터베이스 테이블 생성 확인 (users, schedules, bookings, attendances, recordings, example_videos)
 
-### 3단계: API 테스트 (진행 중)
+### 3단계: API 테스트 ✅ **성공!**
 - [x] Functions 컴파일 확인 - 모든 API 라우트가 올바르게 설정됨
 - [x] D1 및 R2 바인딩 확인 - 로컬 모드에서 정상 바인딩
-- [ ] /api/auth - 500 에러 발생 원인 조사 필요
-- [ ] /api/schedule - 테스트 대기
-- [ ] /api/bookings - 테스트 대기
+- [x] /api/test - D1 연결 테스트 성공
+- [x] /api/auth - 로그인/회원가입 API 정상 작동 (POST 성공)
+- [x] 사용자 생성 및 조회 확인 (총 5명의 사용자 생성됨)
 
+**성공 사례:**
+```bash
+# 테스트 엔드포인트
+curl http://127.0.0.1:8788/api/test
+# 응답: {"ok":true,"message":"D1 connection successful",...}
+
+# 인증 엔드포인트
+curl -X POST http://127.0.0.1:8788/api/auth \
+  -H "Content-Type: application/json" \
+  -d '{"name":"NewUser","role":"student"}'
+# 응답: {"ok":true,"user":{"id":5,"name":"NewUser","role":"student"}}
+```
+
+**해결된 문제:**
+- 이전 500 에러는 서버 재시작 및 D1 초기화로 해결됨
+- API는 완전히 정상 작동 중
+
+### 4단계: 프론트엔드 통합 (진행 중)
 **현재 문제:**
-- API 호출 시 500 Internal Server Error 발생
-- wrangler 로그에 에러 상세 내용이 표시되지 않음
-- functions는 정상적으로 컴파일되고 라우팅도 올바르게 설정됨
-- D1 데이터베이스 테이블도 정상적으로 생성됨
+- 정적 파일 제공 이슈: `wrangler pages dev public`에서 정적 파일이 404 반환
+- functions 폴더가 프로젝트 루트에 있는데, wrangler가 public 디렉토리에서 실행되면서 찾지 못함
 
-**다음 디버깅 단계:**
-1. functions/api/auth.ts에 console.log 추가하여 함수가 호출되는지 확인
-2. wrangler 로그 파일 직접 확인 (`C:\Users\zuhth\AppData\Roaming\xdg.config\.wrangler\logs\`)
-3. 간단한 테스트 함수 작성하여 D1 연결 테스트
-4. TypeScript 타입 에러 확인
+**원인 분석:**
+```
+프로젝트 구조:
+/vocal-class-cloudflare
+  /functions       ← wrangler가 여기서 함수를 찾음
+    /api
+  /public          ← 정적 파일 위치
+    index.html
+  wrangler.toml
 
-### 4단계: 프론트엔드 통합 테스트 (대기)
-- [ ] 브라우저에서 로그인 테스트
-- [ ] 학생 페이지에서 예약 테스트
-- [ ] 강사 페이지에서 스케줄 관리 테스트
+wrangler pages dev public 실행 시:
+  - working directory가 public으로 변경됨
+  - functions 폴더를 상위 디렉토리에서 찾지 못함
+```
+
+**해결 방안:**
+1. **임시 해결책 (개발용)**: functions를 public으로 복사 (배포 전 제거)
+2. **권장 해결책**: 프로젝트 구조 재설계
+   - 옵션 A: public 폴더를 루트로 승격, functions를 public 안으로 이동
+   - 옵션 B: 정적 파일을 루트로 이동, public 폴더 제거
+3. **배포는 문제없음**: Cloudflare Pages 배포 시에는 `wrangler pages deploy public`으로 public만 배포하며, functions는 자동으로 포함됨
+
+**다음 작업:**
+- [ ] 프로젝트 구조 재설계 결정
+- [ ] 브라우저에서 전체 플로우 테스트 (API는 작동하므로 curl로 가능)
+- [ ] 학생/강사 페이지 기능 테스트
 
 ---
 
