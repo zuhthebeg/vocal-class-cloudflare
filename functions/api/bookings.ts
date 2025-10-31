@@ -164,14 +164,13 @@ export async function onRequestPatch(context: { request: Request; env: Env }) {
   try {
     const { request, env } = context;
     const url = new URL(request.url);
-    const pathParts = url.pathname.split('/');
 
-    // /api/bookings/{id}/approve or /api/bookings/{id}/reject
-    const bookingId = pathParts[pathParts.length - 2];
-    const action = pathParts[pathParts.length - 1];
+    // Query parameters: /api/bookings?id=123&action=approve
+    const bookingId = url.searchParams.get('id');
+    const action = url.searchParams.get('action');
 
     if (!bookingId || !action) {
-      return new Response(JSON.stringify({ error: 'Invalid request path' }), {
+      return new Response(JSON.stringify({ error: 'Missing id or action parameter' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
