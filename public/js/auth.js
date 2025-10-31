@@ -22,7 +22,9 @@ async function login(name, role) {
         }
 
         // localStorage 전용 모드 체크 (API 서버가 없을 때)
-        // 포트 3000, 8000, 8080, 5000 등을 사용하거나 localhost, 192.168.x.x IP면 개발 모드
+        // 포트 8788은 wrangler pages dev이므로 API 사용
+        // 기타 개발 포트(3000, 8000 등)는 API 없이 localStorage만 사용
+        const isWranglerDev = window.location.port === '8788';
         const isDevelopmentPort = ['3000', '8000', '8080', '5000', '5500'].includes(window.location.port);
         const isLocalhost = window.location.hostname === 'localhost' ||
                            window.location.hostname === '127.0.0.1' ||
@@ -30,7 +32,8 @@ async function login(name, role) {
                            window.location.hostname.startsWith('10.') ||
                            !window.location.hostname;
 
-        const USE_LOCAL_STORAGE_ONLY = isLocalhost || isDevelopmentPort;
+        // wrangler dev나 프로덕션 환경이 아니면 localStorage만 사용
+        const USE_LOCAL_STORAGE_ONLY = !isWranglerDev && (isLocalhost || isDevelopmentPort);
 
         let user;
 

@@ -1,5 +1,5 @@
 name = "vocal-class"
-compatibility_date = "2025-10-28"
+compatibility_date = "2025-10-11"
 pages_build_output_dir = "public"
 
 # D1 데이터베이스 바인딩
@@ -9,9 +9,9 @@ database_name = "vocal-class-db"
 database_id = "9f90ac1e-f6d8-4a9b-9e9d-2ae5548ac054"
 
 # R2 버킷 바인딩 (녹음파일, 서명 이미지 저장)
-#[[r2_buckets]]
-#binding = "STORAGE"
-#bucket_name = "vocal-class-storage"
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "vocal-class-storage"
 
 # KV 네임스페이스 (세션 관리용, 선택사항)
 #[[kv_namespaces]]
