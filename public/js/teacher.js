@@ -11,20 +11,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const currentMonthElement = document.getElementById('current-month');
     const prevMonthBtn = document.getElementById('prev-month-btn');
     const nextMonthBtn = document.getElementById('next-month-btn');
-    const timeslotPanel = document.getElementById('timeslot-panel');
-    const selectedDateTitle = document.getElementById('selected-date-title');
-    const timeslotContainer = document.getElementById('timeslot-container');
-    const saveDateScheduleBtn = document.getElementById('save-date-schedule-btn');
-    const closeTimeslotBtn = document.getElementById('close-timeslot-btn');
+    // const timeslotPanel = document.getElementById('timeslot-panel'); // 제거됨
+    // const selectedDateTitle = document.getElementById('selected-date-title'); // 제거됨
+    // const timeslotContainer = document.getElementById('timeslot-container'); // 제거됨
+    // const saveDateScheduleBtn = document.getElementById('save-date-schedule-btn'); // 제거됨
+    // const closeTimeslotBtn = document.getElementById('close-timeslot-btn'); // 제거됨
     const bookingList = document.getElementById('booking-list');
     const generateQrBtn = document.getElementById('generate-qr-btn');
     const qrcodeDiv = document.getElementById('qrcode');
     const qrInfo = document.getElementById('qr-info');
     const attendanceList = document.getElementById('attendance-list');
     const refreshAttendanceBtn = document.getElementById('refresh-attendance-btn');
-    const startHourSelect = document.getElementById('start-hour');
-    const endHourSelect = document.getElementById('end-hour');
-    const applyTimeRangeBtn = document.getElementById('apply-time-range-btn');
+    // const startHourSelect = document.getElementById('start-hour'); // 제거됨
+    // const endHourSelect = document.getElementById('end-hour'); // 제거됨
+    // const applyTimeRangeBtn = document.getElementById('apply-time-range-btn'); // 제거됨
 
     // 시간표 데이터 (예: 월-일, 9시-22시, 30분 단위)
     const days = ['월', '화', '수', '목', '금', '토', '일'];
@@ -67,61 +67,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // 시간 선택 드롭다운 초기화
+    // 시간 선택 드롭다운 초기화 (현재 미사용)
     function initializeTimeSelects() {
-        startHourSelect.innerHTML = '';
-        endHourSelect.innerHTML = '';
-
-        for (let hour = 0; hour <= 23; hour++) {
-            const startOption = document.createElement('option');
-            startOption.value = hour;
-            startOption.textContent = `${hour}:00`;
-            if (hour === startHour) startOption.selected = true;
-            startHourSelect.appendChild(startOption);
-
-            const endOption = document.createElement('option');
-            endOption.value = hour;
-            endOption.textContent = `${hour}:00`;
-            if (hour === endHour) endOption.selected = true;
-            endHourSelect.appendChild(endOption);
-        }
+        // 제거된 요소들로 인해 주석 처리
+        // if (!startHourSelect || !endHourSelect) return;
+        // startHourSelect.innerHTML = '';
+        // endHourSelect.innerHTML = '';
+        // for (let hour = 0; hour <= 23; hour++) {
+        //     const startOption = document.createElement('option');
+        //     startOption.value = hour;
+        //     startOption.textContent = `${hour}:00`;
+        //     if (hour === startHour) startOption.selected = true;
+        //     startHourSelect.appendChild(startOption);
+        //     const endOption = document.createElement('option');
+        //     endOption.value = hour;
+        //     endOption.textContent = `${hour}:00`;
+        //     if (hour === endHour) endOption.selected = true;
+        //     endHourSelect.appendChild(endOption);
+        // }
     }
 
-    // 시간 범위 적용 버튼
-    applyTimeRangeBtn.addEventListener('click', () => {
-        const newStart = parseInt(startHourSelect.value);
-        const newEnd = parseInt(endHourSelect.value);
-
-        if (newStart >= newEnd) {
-            if (typeof showToast === 'function') {
-                showToast('시작 시간은 종료 시간보다 빨라야 합니다.', 'error');
-            } else {
-                alert('시작 시간은 종료 시간보다 빨라야 합니다.');
-            }
-            return;
-        }
-
-        startHour = newStart;
-        endHour = newEnd;
-
-        // localStorage에 저장
-        localStorage.setItem('timeRange', JSON.stringify({ start: startHour, end: endHour }));
-
-        // 시간 배열 재생성
-        generateTimes();
-
-        // 스케줄 다시 렌더링
-        renderCalendar();
-
-        if (typeof showToast === 'function') {
-            showToast('운영 시간이 변경되었습니다.', 'success');
-        }
-    });
+    // 시간 범위 적용 버튼 (현재 미사용)
+    // if (applyTimeRangeBtn) {
+    //     applyTimeRangeBtn.addEventListener('click', () => {
+    //         const newStart = parseInt(startHourSelect.value);
+    //         const newEnd = parseInt(endHourSelect.value);
+    //         if (newStart >= newEnd) {
+    //             if (typeof showToast === 'function') {
+    //                 showToast('시작 시간은 종료 시간보다 빨라야 합니다.', 'error');
+    //             } else {
+    //                 alert('시작 시간은 종료 시간보다 빨라야 합니다.');
+    //             }
+    //             return;
+    //         }
+    //         startHour = newStart;
+    //         endHour = newEnd;
+    //         localStorage.setItem('timeRange', JSON.stringify({ start: startHour, end: endHour }));
+    //         generateTimes();
+    //         renderCalendar();
+    //         if (typeof showToast === 'function') {
+    //             showToast('운영 시간이 변경되었습니다.', 'success');
+    //         }
+    //     });
+    // }
 
     // 데이터 구조: 날짜 기반으로 변경 (예: {"2025-10-29": ["10:00", "10:30"], ...})
     let teacherSchedule = {}; // 날짜별 가능 시간
     let bookedSlots = new Set(); // 예약된 시간 슬롯 (형식: "2025-10-29-10:00")
     let bookedSlotsInfo = {}; // 예약 정보 매핑 (slotKey -> {studentName, ...})
+    let allBookings = []; // 모든 예약 데이터
+    let bookingsByDate = {}; // 날짜별 예약 데이터 (key: "YYYY-MM-DD", value: array of bookings)
     const TEACHER_SCHEDULE_KEY = 'teacherSchedule';
     const BOOKINGS_KEY = 'bookings';
 
@@ -181,13 +176,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             const hasSchedule = teacherSchedule[dateStr] && teacherSchedule[dateStr].length > 0;
             const isToday = dateStr === new Date().toISOString().split('T')[0];
             const isSelected = dateStr === selectedDate;
+            const dateBookings = bookingsByDate[dateStr] || [];
+            const hasBookings = dateBookings.length > 0;
 
-            let classNames = 'p-2 border rounded cursor-pointer hover:bg-indigo-50 transition-colors';
+            // 예약 상태에 따라 다른 색상
+            let statusBadge = '';
+            if (hasBookings) {
+                const approvedCount = dateBookings.filter(b => b.status === 'approved').length;
+                const pendingCount = dateBookings.filter(b => b.status === 'pending').length;
+                const rejectedCount = dateBookings.filter(b => b.status === 'rejected').length;
+
+                if (approvedCount > 0) statusBadge = '🟢';
+                else if (pendingCount > 0) statusBadge = '🟡';
+                else if (rejectedCount > 0) statusBadge = '🔴';
+            }
+
+            let classNames = 'p-2 border rounded cursor-pointer hover:bg-indigo-50 transition-colors relative';
             if (isToday) classNames += ' border-indigo-500 font-bold';
             if (isSelected) classNames += ' bg-indigo-200';
-            if (hasSchedule) classNames += ' bg-green-100';
+            if (hasBookings) classNames += ' bg-blue-50';
+            if (hasSchedule) classNames += ' bg-green-50';
 
-            calendarHTML += `<div class="calendar-day ${classNames}" data-date="${dateStr}">${day}</div>`;
+            calendarHTML += `<div class="calendar-day ${classNames}" data-date="${dateStr}">
+                <div>${day}</div>
+                ${statusBadge ? `<div class="text-xs">${statusBadge}</div>` : ''}
+            </div>`;
         }
 
         calendarHTML += '</div>';
@@ -198,9 +211,49 @@ document.addEventListener('DOMContentLoaded', async () => {
             dayElement.addEventListener('click', () => {
                 selectedDate = dayElement.dataset.date;
                 renderCalendar(); // 다시 렌더링하여 선택 표시
-                showTimeslotPanel();
+                showDateBookingsPanel();
             });
         });
+    }
+
+    /**
+     * 선택된 날짜의 예약 정보 표시
+     */
+    function showDateBookingsPanel() {
+        const dateBookingsPanel = document.getElementById('date-bookings-panel');
+        const dateBookingsTitle = document.getElementById('selected-date-bookings-title');
+        const dateBookingsContainer = document.getElementById('date-bookings-container');
+
+        if (!dateBookingsPanel) return;
+
+        const dateBookings = bookingsByDate[selectedDate] || [];
+
+        dateBookingsTitle.textContent = `${selectedDate} 예약 현황`;
+        dateBookingsContainer.innerHTML = '';
+
+        if (dateBookings.length === 0) {
+            dateBookingsContainer.innerHTML = '<p class="text-gray-500 text-sm">이 날짜에 예약이 없습니다.</p>';
+        } else {
+            dateBookings.forEach(booking => {
+                const statusClass = booking.status === 'approved' ? 'bg-green-50 border-green-200' :
+                                   booking.status === 'pending' ? 'bg-yellow-50 border-yellow-200' :
+                                   booking.status === 'rejected' ? 'bg-red-50 border-red-200' : 'bg-gray-50';
+                const statusText = booking.status === 'approved' ? '✅ 승인됨' :
+                                  booking.status === 'pending' ? '⏳ 대기중' :
+                                  booking.status === 'rejected' ? '❌ 거절됨' : booking.status;
+
+                const bookingEl = document.createElement('div');
+                bookingEl.className = `p-2 border rounded text-sm ${statusClass}`;
+                bookingEl.innerHTML = `
+                    <p class="font-semibold">${booking.student_name}님</p>
+                    <p class="text-xs text-gray-600">시간: ${booking.time_slot}</p>
+                    <p class="text-xs font-semibold">${statusText}</p>
+                `;
+                dateBookingsContainer.appendChild(bookingEl);
+            });
+        }
+
+        dateBookingsPanel.classList.remove('hidden');
     }
 
     // 이전/다음 달 버튼
@@ -227,9 +280,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let dragSelectValue = false;
 
     /**
-     * 시간 슬롯 패널 표시
+     * 시간 슬롯 패널 표시 (현재 미사용 - 예약 달력으로 대체됨)
      */
-    function showTimeslotPanel() {
+    /* function showTimeslotPanel() {
         if (!selectedDate) return;
 
         timeslotPanel.classList.remove('hidden');
@@ -310,16 +363,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 전역 mouseup 이벤트 (드래그 종료)
     document.addEventListener('mouseup', () => {
         isSlotDragging = false;
-    });
+    }); */
 
-    // 시간 슬롯 패널 닫기
-    closeTimeslotBtn.addEventListener('click', () => {
-        timeslotPanel.classList.add('hidden');
-        selectedDate = null;
-        renderCalendar();
-    });
+    // 시간 슬롯 패널 닫기 (현재 미사용)
+    // if (closeTimeslotBtn) {
+    //     closeTimeslotBtn.addEventListener('click', () => {
+    //         if (timeslotPanel) timeslotPanel.classList.add('hidden');
+    //         selectedDate = null;
+    //         renderCalendar();
+    //     });
+    // }
 
-    // 날짜별 스케줄 저장
+    // 날짜별 스케줄 저장 (현재 미사용)
+    /* if (saveDateScheduleBtn) {
     saveDateScheduleBtn.addEventListener('click', async () => {
         if (!selectedDate) return;
 
@@ -390,7 +446,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 alert(`${selectedDate} 스케줄이 저장되었습니다.`);
             }
 
-            timeslotPanel.classList.add('hidden');
+            // timeslotPanel.classList.add('hidden');
             selectedDate = null;
             renderCalendar();
         } catch (error) {
@@ -403,6 +459,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     });
+    } */ // end of saveDateScheduleBtn.addEventListener
 
     /**
      * 주간 스케줄 렌더링 (구버전 - 사용하지 않음)
@@ -758,9 +815,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 예약된 시간 슬롯 수집
             if (data.bookings && data.bookings.length > 0) {
                 data.bookings.forEach(booking => {
-                    if (booking.status !== 'cancelled' && booking.status !== 'completed') {
-                        const koreanDay = reverseDayMap[booking.day_of_week];
-                        const slotKey = `${koreanDay}-${booking.time_slot}`;
+                    if (booking.status !== 'cancelled' && booking.status !== 'rejected' && booking.status !== 'completed') {
+                        const slotKey = `${booking.booking_date}-${booking.time_slot}`;
                         bookedSlots.add(slotKey);
                         bookedSlotsInfo[slotKey] = {
                             studentName: booking.student_name,
@@ -778,21 +834,92 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
+            // 상태별로 정렬: pending -> approved -> rejected -> cancelled
+            const sortOrder = { 'pending': 0, 'approved': 1, 'completed': 2, 'rejected': 3, 'cancelled': 4 };
+            data.bookings.sort((a, b) => (sortOrder[a.status] || 99) - (sortOrder[b.status] || 99));
+
             data.bookings.forEach(booking => {
                 const bookingItem = document.createElement('div');
-                const statusClass = booking.status === 'completed' ? 'bg-green-100' :
-                                   booking.status === 'cancelled' ? 'bg-gray-100' : 'bg-blue-50';
-                const statusText = booking.status === 'completed' ? '✅ 완료' :
-                                  booking.status === 'cancelled' ? '❌ 취소됨' :
-                                  booking.status === 'confirmed' ? '⏳ 확정' : '⏱️ 대기중';
 
-                bookingItem.className = `p-3 border rounded-md shadow-sm ${statusClass}`;
+                // 상태별 스타일링
+                let statusClass, statusText, statusIcon;
+                switch(booking.status) {
+                    case 'pending':
+                        statusClass = 'bg-yellow-50 border-yellow-200 border-2';
+                        statusText = '승인 대기중';
+                        statusIcon = '⏳';
+                        break;
+                    case 'approved':
+                        statusClass = 'bg-green-50 border-green-200';
+                        statusText = '승인됨';
+                        statusIcon = '✅';
+                        break;
+                    case 'rejected':
+                        statusClass = 'bg-red-50 border-red-200';
+                        statusText = '거절됨';
+                        statusIcon = '❌';
+                        break;
+                    case 'completed':
+                        statusClass = 'bg-blue-50 border-blue-200';
+                        statusText = '완료';
+                        statusIcon = '✓';
+                        break;
+                    case 'cancelled':
+                        statusClass = 'bg-gray-50 border-gray-200';
+                        statusText = '취소됨';
+                        statusIcon = '⊘';
+                        break;
+                    default:
+                        statusClass = 'bg-blue-50 border-blue-200';
+                        statusText = '확정';
+                        statusIcon = '✓';
+                }
+
+                bookingItem.className = `p-4 border rounded-md shadow-sm ${statusClass}`;
                 bookingItem.innerHTML = `
-                    <p><strong>${booking.student_name}</strong>님 - ${reverseDayMap[booking.day_of_week]} ${booking.time_slot}</p>
-                    <p class="text-sm text-gray-600">예약일: ${booking.booking_date}</p>
-                    <p class="text-sm font-semibold">${statusText}</p>
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <p class="font-semibold text-lg">${booking.student_name}님</p>
+                            <p class="text-gray-700">${booking.booking_date} ${booking.time_slot}</p>
+                            <p class="text-sm text-gray-600">요청일: ${booking.created_at ? new Date(booking.created_at).toLocaleDateString('ko-KR') : ''}</p>
+                            <p class="text-sm font-semibold mt-1 ${
+                                booking.status === 'approved' ? 'text-green-600' :
+                                booking.status === 'pending' ? 'text-yellow-600' :
+                                booking.status === 'rejected' ? 'text-red-600' : 'text-gray-600'
+                            }">${statusIcon} ${statusText}</p>
+                        </div>
+                        ${booking.status === 'pending' ? `
+                            <div class="flex gap-2">
+                                <button class="approve-booking-btn btn btn-success btn-sm" data-booking-id="${booking.id}">
+                                    승인
+                                </button>
+                                <button class="reject-booking-btn btn btn-danger btn-sm" data-booking-id="${booking.id}">
+                                    거절
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
                 `;
                 bookingList.appendChild(bookingItem);
+            });
+
+            // 승인/거절 버튼 이벤트 리스너 추가
+            document.querySelectorAll('.approve-booking-btn').forEach(btn => {
+                btn.addEventListener('click', handleApproveBooking);
+            });
+            document.querySelectorAll('.reject-booking-btn').forEach(btn => {
+                btn.addEventListener('click', handleRejectBooking);
+            });
+
+            // 예약 데이터를 전역 변수에 저장하고 날짜별로 그룹화
+            allBookings = data.bookings;
+            bookingsByDate = {};
+            data.bookings.forEach(booking => {
+                const date = booking.booking_date;
+                if (!bookingsByDate[date]) {
+                    bookingsByDate[date] = [];
+                }
+                bookingsByDate[date].push(booking);
             });
 
             renderCalendar(); // 스케줄 다시 렌더링 (예약된 시간 표시 반영)
@@ -839,7 +966,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             // API 모드
-            const response = await fetch(`/api/bookings/${bookingId}/approve`, {
+            const response = await fetch(`/api/bookings?id=${bookingId}&action=approve`, {
                 method: 'PATCH',
             });
 
@@ -905,7 +1032,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             // API 모드
-            const response = await fetch(`/api/bookings/${bookingId}/reject`, {
+            const response = await fetch(`/api/bookings?id=${bookingId}&action=reject`, {
                 method: 'PATCH',
             });
 
@@ -1103,6 +1230,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             renderCalendar(); // Render empty schedule
         }
+    }
+
+    // 날짜별 예약 패널 닫기 버튼 이벤트
+    const closeDateBookingsBtn = document.getElementById('close-date-bookings-btn');
+    if (closeDateBookingsBtn) {
+        closeDateBookingsBtn.addEventListener('click', () => {
+            const dateBookingsPanel = document.getElementById('date-bookings-panel');
+            if (dateBookingsPanel) {
+                dateBookingsPanel.classList.add('hidden');
+            }
+            selectedDate = null;
+            renderCalendar();
+        });
     }
 
     // 초기 렌더링

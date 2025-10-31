@@ -77,15 +77,41 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
   }
 }
 
-// GET: Get user by ID
+// GET: Get user by ID or get all users by role
 export async function onRequestGet(context: { request: Request; env: Env }) {
   try {
     const { request, env } = context;
     const url = new URL(request.url);
     const userId = url.searchParams.get('id');
+    const role = url.searchParams.get('role');
 
+    // Get all users by role
+    if (role) {
+      if (!['teacher', 'student'].includes(role)) {
+        return new Response(JSON.stringify({ error: 'Invalid role' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      const { results } = await env.DB.prepare(
+        'SELECT id, name, role FROM users WHERE role = ? ORDER BY name'
+      )
+        .bind(role)
+        .all();
+
+      return new Response(
+        JSON.stringify({ users: results }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Get user by ID
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'User ID required' }), {
+      return new Response(JSON.stringify({ error: 'User ID or role required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });

@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const selectedDateTitle = document.getElementById('selected-date-title');
     const closeTimeslotBtn = document.getElementById('close-timeslot-btn');
     const myBookingList = document.getElementById('my-booking-list');
+    const teacherSelect = document.getElementById('teacher-select');
 
     // localStorage 모드 체크
     const isDevelopmentPort = ['3000', '8000', '8080', '5000', '5500'].includes(window.location.port);
@@ -38,6 +39,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedDate = null; // 선택된 날짜 (YYYY-MM-DD)
 
     const BOOKINGS_KEY = 'bookings';
+
+    /**
+     * 강사 목록 로드
+     */
+    async function loadTeachers() {
+        try {
+            if (USE_LOCAL_STORAGE_ONLY) {
+                // localStorage 모드에서는 기본 강사 추가
+                teacherSelect.innerHTML = '<option value="1">강사1</option>';
+                teacherId = 1;
+                return;
+            }
+
+            // API 모드
+            const response = await fetch('/api/auth?role=teacher');
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load teachers');
+            }
+
+            const teachers = data.users || [];
+            teacherSelect.innerHTML = '<option value="">강사를 선택하세요</option>';
+
+            if (teachers.length === 0) {
+                teacherSelect.innerHTML += '<option value="" disabled>등록된 강사가 없습니다</option>';
+                return;
+            }
+
+            teachers.forEach(teacher => {
+                const option = document.createElement('option');
+                option.value = teacher.id;
+                option.textContent = teacher.name;
+                teacherSelect.appendChild(option);
+            });
+
+            // 강사가 한 명이면 자동 선택
+            if (teachers.length === 1) {
+                teacherId = teachers[0].id;
+                teacherSelect.value = teacherId;
+            }
+        } catch (error) {
+            console.error('Load teachers error:', error);
+            teacherSelect.innerHTML = '<option value="" disabled>강사 목록을 불러오지 못했습니다</option>';
+        }
+    }
 
     // 시간 생성 (9:00 ~ 22:00, 30분 단위)
     function generateTimeOptions() {
@@ -153,6 +200,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 showToast('시간을 선택해주세요.', 'error');
             } else {
                 alert('시간을 선택해주세요.');
+            }
+            return;
+        }
+
+        if (!teacherId) {
+            if (typeof showToast === 'function') {
+                showToast('강사를 먼저 선택해주세요.', 'error');
+            } else {
+                alert('강사를 먼저 선택해주세요.');
             }
             return;
         }
@@ -468,7 +524,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderCalendar();
     });
 
+    // 강사 선택 이벤트
+    teacherSelect.addEventListener('change', (e) => {
+        teacherId = e.target.value ? parseInt(e.target.value) : null;
+        renderCalendar(); // 강사 변경 시 달력 다시 렌더링
+    });
+
     // 초기 렌더링
+    await loadTeachers();
     await loadBookings();
     renderCalendar();
 });
