@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="보컬 클래스 출석 서명 페이지">
+    <title>출석 서명 - Vocal Class</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center h-screen">
+
+    <main role="main" class="w-full max-w-lg p-6 bg-white rounded-lg shadow-md">
+        <header>
+            <h1 class="text-2xl font-bold text-center mb-4">출석 서명</h1>
+            <p id="session-info" class="text-center text-gray-600 mb-4" aria-live="polite">세션 정보를 불러오는 중...</p>
+        </header>
+
+        <div class="canvas-container bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg" role="group" aria-labelledby="signature-label">
+            <span id="signature-label" class="sr-only">서명 캔버스</span>
+            <canvas id="signature-pad"
+                    class="w-full h-full"
+                    role="img"
+                    aria-label="서명 입력 영역 - 마우스나 터치로 서명하세요"></canvas>
+        </div>
+
+        <div class="flex justify-between mt-4 space-x-4" role="group" aria-label="서명 작업 버튼">
+            <button id="clear-btn" class="btn btn-secondary w-1/2" aria-label="서명 다시 그리기">다시 그리기</button>
+            <button id="submit-btn" class="btn btn-primary w-1/2" aria-label="서명 제출">제출</button>
+        </div>
+        <button onclick="location.href='/'" class="btn btn-outline w-full mt-4" aria-label="홈 페이지로 이동">홈으로</button>
+    </main>
+
+    <script src="js/components.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/signature.js"></script>
+</body>
+</html>

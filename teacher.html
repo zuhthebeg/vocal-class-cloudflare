@@ -89,34 +89,57 @@
 
         <!-- 예약 및 출석 관리 -->
         <section class="lg:col-span-3 bg-white p-6 rounded-lg shadow" aria-labelledby="booking-heading">
-            <h2 id="booking-heading" class="text-3xl font-bold mb-6 text-indigo-600">예약 요청 관리</h2>
-            <p class="text-gray-600 mb-4">학생들의 예약 요청을 승인하거나 거절할 수 있습니다.</p>
-            <div id="booking-list"
-                 class="space-y-3 mb-6 h-64 overflow-y-auto"
-                 role="region"
-                 aria-label="수업 예약 목록"
-                 aria-live="polite">
-                <!-- 예약 목록은 JS로 동적 생성 -->
-            </div>
+            <h2 id="booking-heading" class="text-3xl font-bold mb-6 text-indigo-600">예약 및 출석 관리</h2>
 
-            <h2 id="qr-heading" class="text-2xl font-bold mb-4 mt-6">출석 QR 생성</h2>
-            <button id="generate-qr-btn" class="btn btn-success w-full" aria-label="현재 시간으로 출석 QR 코드 생성">
-                현재 시간으로 QR 생성
-            </button>
-            <div id="qrcode" class="mt-4 flex justify-center" role="img" aria-label="출석용 QR 코드"></div>
-            <p id="qr-info" class="text-center text-sm text-gray-500 mt-2" aria-live="polite"></p>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- 왼쪽: 예약 요청 목록 -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">📋 예약 요청</h3>
+                    <p class="text-sm text-gray-600 mb-3">학생들의 예약 요청을 승인하거나 거절할 수 있습니다.</p>
+                    <div id="booking-list"
+                         class="space-y-3 h-96 overflow-y-auto border rounded-lg p-3 bg-gray-50"
+                         role="region"
+                         aria-label="수업 예약 목록"
+                         aria-live="polite">
+                        <!-- 예약 목록은 JS로 동적 생성 -->
+                    </div>
+                </div>
 
-            <h2 id="attendance-heading" class="text-2xl font-bold mb-4 mt-6">출석 현황</h2>
-            <div id="attendance-list"
-                 class="space-y-2 h-48 overflow-y-auto"
-                 role="region"
-                 aria-label="출석 현황 목록"
-                 aria-live="polite">
-                <!-- 출석 현황은 JS로 동적 생성 -->
+                <!-- 오른쪽: QR 코드 및 출석 현황 -->
+                <div class="space-y-6">
+                    <!-- QR 코드 영역 -->
+                    <div class="border rounded-lg p-4 bg-indigo-50">
+                        <h3 class="text-xl font-semibold mb-3 text-gray-800">📱 출석 QR 코드</h3>
+                        <p class="text-sm text-gray-600 mb-3">예약 목록에서 "QR 생성" 버튼을 클릭하거나, 즉석 수업 QR을 생성하세요.</p>
+
+                        <!-- 즉석 수업 QR 생성 버튼 -->
+                        <button id="generate-instant-qr-btn" class="btn btn-primary w-full mb-4">
+                            ⚡ 즉석 수업 QR 생성
+                        </button>
+
+                        <div id="qrcode" class="mt-4 flex justify-center" role="img" aria-label="출석용 QR 코드"></div>
+                        <p id="qr-info" class="text-center text-sm text-gray-700 mt-2 font-medium" aria-live="polite"></p>
+                    </div>
+
+                    <!-- 출석 현황 영역 -->
+                    <div class="border rounded-lg p-4 bg-green-50">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-xl font-semibold text-gray-800">✅ 출석 현황</h3>
+                            <button id="refresh-attendance-btn" class="btn btn-secondary btn-sm" aria-label="출석 현황 새로고침">
+                                🔄 새로고침
+                            </button>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-3">달력에서 날짜를 클릭하거나 QR 생성 시 확인할 수 있습니다.</p>
+                        <div id="attendance-list"
+                             class="space-y-2 h-64 overflow-y-auto"
+                             role="region"
+                             aria-label="출석 현황 목록"
+                             aria-live="polite">
+                            <!-- 출석 현황은 JS로 동적 생성 -->
+                        </div>
+                    </div>
+                </div>
             </div>
-            <button id="refresh-attendance-btn" class="btn btn-secondary btn-sm w-full mt-2" aria-label="출석 현황 새로고침">
-                새로고침
-            </button>
         </section>
     </main>
 

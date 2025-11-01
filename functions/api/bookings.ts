@@ -8,7 +8,8 @@ interface BookingRequest {
   studentId: number;
   teacherId: number;
   bookingDate: string; // 'YYYY-MM-DD'
-  timeSlot: string; // 'HH:MM'
+  timeSlot?: string; // 'HH:MM' - set by teacher when approving
+  suggestedTimeSlots?: string[]; // student's suggested available times
   status?: string; // Optional, defaults to 'pending'
 }
 
@@ -18,8 +19,16 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     const { request, env } = context;
     const data: BookingRequest = await request.json();
 
-    if (!data.studentId || !data.teacherId || !data.bookingDate || !data.timeSlot) {
+    if (!data.studentId || !data.teacherId || !data.bookingDate) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Either timeSlot or suggestedTimeSlots must be provided
+    if (!data.timeSlot && (!data.suggestedTimeSlots || data.suggestedTimeSlots.length === 0)) {
+      return new Response(JSON.stringify({ error: 'Either timeSlot or suggestedTimeSlots required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -33,40 +42,23 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
       });
     }
 
-    // 시간 형식 검증
-    if (!/^\d{1,2}:\d{2}$/.test(data.timeSlot)) {
+    // 시간 형식 검증 (timeSlot이 제공된 경우에만)
+    if (data.timeSlot && !/^\d{1,2}:\d{2}$/.test(data.timeSlot)) {
       return new Response(JSON.stringify({ error: 'Invalid time format. Use HH:MM' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // 같은 학생이 같은 시간에 이미 예약 요청했는지 확인 (pending or approved)
-    const studentBooking = await env.DB.prepare(`
-      SELECT id FROM bookings
-      WHERE student_id = ? AND booking_date = ? AND time_slot = ?
-      AND status IN ('pending', 'approved')
-    `)
-      .bind(data.studentId, data.bookingDate, data.timeSlot)
-      .first();
-
-    if (studentBooking) {
-      return new Response(
-        JSON.stringify({ error: 'You have already requested this time slot' }),
-        {
-          status: 409,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // 예약 요청 생성 (기본 상태: pending)
+    // 예약 요청 생성
     const status = data.status || 'pending';
+    const suggestedTimeSlotsJson = data.suggestedTimeSlots ? JSON.stringify(data.suggestedTimeSlots) : null;
+
     const result = await env.DB.prepare(`
-      INSERT INTO bookings (student_id, teacher_id, booking_date, time_slot, status)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO bookings (student_id, teacher_id, booking_date, time_slot, suggested_time_slots, status)
+      VALUES (?, ?, ?, ?, ?, ?)
     `)
-      .bind(data.studentId, data.teacherId, data.bookingDate, data.timeSlot, status)
+      .bind(data.studentId, data.teacherId, data.bookingDate, data.timeSlot || null, suggestedTimeSlotsJson, status)
       .run();
 
     return new Response(
@@ -106,6 +98,7 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
         b.id,
         b.booking_date,
         b.time_slot,
+        b.suggested_time_slots,
         b.status,
         b.created_at,
         u_student.name as student_name,
@@ -140,8 +133,14 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
 
     const { results } = await env.DB.prepare(query).bind(...params).all();
 
+    // Parse JSON strings to arrays for suggested_time_slots
+    const bookingsWithParsedTimes = results.map((booking: any) => ({
+      ...booking,
+      suggested_time_slots: booking.suggested_time_slots ? JSON.parse(booking.suggested_time_slots) : null
+    }));
+
     return new Response(
-      JSON.stringify({ bookings: results }),
+      JSON.stringify({ bookings: bookingsWithParsedTimes }),
       {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -165,9 +164,10 @@ export async function onRequestPatch(context: { request: Request; env: Env }) {
     const { request, env } = context;
     const url = new URL(request.url);
 
-    // Query parameters: /api/bookings?id=123&action=approve
+    // Query parameters: /api/bookings?id=123&action=approve&selectedTime=18:00
     const bookingId = url.searchParams.get('id');
     const action = url.searchParams.get('action');
+    const selectedTime = url.searchParams.get('selectedTime');
 
     if (!bookingId || !action) {
       return new Response(JSON.stringify({ error: 'Missing id or action parameter' }), {
@@ -178,7 +178,7 @@ export async function onRequestPatch(context: { request: Request; env: Env }) {
 
     // 예약이 존재하는지 확인
     const booking = await env.DB.prepare(`
-      SELECT status FROM bookings WHERE id = ?
+      SELECT status, suggested_time_slots, time_slot FROM bookings WHERE id = ?
     `)
       .bind(bookingId)
       .first();
@@ -208,23 +208,67 @@ export async function onRequestPatch(context: { request: Request; env: Env }) {
     let newStatus: string;
     if (action === 'approve') {
       newStatus = 'approved';
+
+      // 승인 시 선택된 시간 필수
+      if (!selectedTime) {
+        return new Response(
+          JSON.stringify({ error: 'selectedTime is required for approval' }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // 선택된 시간이 제시된 시간 중 하나인지 확인
+      const suggestedTimes = booking.suggested_time_slots ? JSON.parse(booking.suggested_time_slots as string) : [];
+      if (suggestedTimes.length > 0 && !suggestedTimes.includes(selectedTime)) {
+        return new Response(
+          JSON.stringify({ error: 'Selected time must be one of the suggested times' }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // 시간 형식 검증
+      if (!/^\d{1,2}:\d{2}$/.test(selectedTime)) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid time format. Use HH:MM' }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      // 승인 시 time_slot도 함께 업데이트
+      await env.DB.prepare(`
+        UPDATE bookings SET status = ?, time_slot = ? WHERE id = ?
+      `)
+        .bind(newStatus, selectedTime, bookingId)
+        .run();
+
     } else if (action === 'reject') {
       newStatus = 'rejected';
+
+      // 거절 시 time_slot 업데이트 없이 상태만 변경
+      await env.DB.prepare(`
+        UPDATE bookings SET status = ? WHERE id = ?
+      `)
+        .bind(newStatus, bookingId)
+        .run();
+
     } else {
       return new Response(
-        JSON.stringify({ error: 'Invalid action. Use /approve or /reject' }),
+        JSON.stringify({ error: 'Invalid action. Use approve or reject' }),
         {
           status: 400,
           headers: { 'Content-Type': 'application/json' },
         }
       );
     }
-
-    await env.DB.prepare(`
-      UPDATE bookings SET status = ? WHERE id = ?
-    `)
-      .bind(newStatus, bookingId)
-      .run();
 
     return new Response(
       JSON.stringify({ ok: true, message: `Booking ${newStatus}`, status: newStatus }),
