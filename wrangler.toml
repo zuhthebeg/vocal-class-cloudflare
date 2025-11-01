@@ -1,6 +1,5 @@
 name = "vocal-class"
 compatibility_date = "2025-10-11"
-pages_build_output_dir = "public"
 
 # D1 데이터베이스 바인딩
 [[d1_databases]]

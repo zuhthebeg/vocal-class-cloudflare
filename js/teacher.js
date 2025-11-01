@@ -12,8 +12,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const prevMonthBtn = document.getElementById('prev-month-btn');
     const nextMonthBtn = document.getElementById('next-month-btn');
     const bookingList = document.getElementById('booking-list');
-    const generateQrBtn = document.getElementById('generate-qr-btn');
-    const generateInstantQrBtn = document.getElementById('generate-instant-qr-btn');
+    const generateQrBtn = document.getElementById('generate-instant-qr-btn');
     const qrcodeDiv = document.getElementById('qrcode');
     const qrInfo = document.getElementById('qr-info');
     const attendanceList = document.getElementById('attendance-list');
@@ -1276,62 +1275,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * 즉석 수업 QR 코드 생성
+     * QR 코드 생성
      */
-    function handleGenerateInstantQR() {
-        if (!user || !user.id) {
-            if (typeof showToast === 'function') {
-                showToast('로그인이 필요합니다.', 'error');
-            } else {
-                alert('로그인이 필요합니다.');
-            }
-            return;
-        }
-
-        // 현재 시간 기준으로 30분 단위 시간대 계산
-        const now = new Date();
-        const hour = now.getHours();
-        const minutes = now.getMinutes();
-        const startMin = minutes < 30 ? '00' : '30';
-        const endMin = minutes < 30 ? '30' : '00';
-        const endHour = minutes < 30 ? hour : hour + 1;
-
-        const timeSlot = `${String(hour).padStart(2, '0')}:${startMin}-${String(endHour).padStart(2, '0')}:${endMin}`;
-        const today = new Date().toISOString().split('T')[0];
-
-        // 즉석 세션 ID 생성
-        const sessionId = `instant_${user.id}_${Date.now()}`;
-
-        // QR 데이터 생성
-        const qrData = `${window.location.origin}/signature?sessionId=${sessionId}&teacherId=${user.id}`;
-
-        qrcodeDiv.innerHTML = ''; // 기존 QR 코드 제거
-        new QRCode(qrcodeDiv, {
-            text: qrData,
-            width: 200,
-            height: 200,
-            colorDark : "#000000",
-            colorLight : "#ffffff",
-            correctLevel : QRCode.CorrectLevel.H
+    if (generateQrBtn) {
+        generateQrBtn.addEventListener('click', () => {
+            const sessionId = `session-${Date.now()}`; // 현재 시간 기반 세션 ID
+            const qrData = `${window.location.origin}/signature.html?sessionId=${sessionId}`;
+    
+            qrcodeDiv.innerHTML = ''; // 기존 QR 코드 제거
+            new QRCode(qrcodeDiv, {
+                text: qrData,
+                width: 200,
+                height: 200,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+            qrInfo.textContent = `세션 ID: ${sessionId} (이 QR 코드를 스캔하여 출석하세요)`;
+    
+            // 생성된 세션 ID를 localStorage에 저장 (예약 현황과 연결하기 위함)
+            // 실제로는 이 세션 ID를 예약 정보와 함께 저장하거나, 출석 시 사용
+            localStorage.setItem('currentQrSessionId', sessionId);
+    
+            // QR 생성 후 출석 현황 새로고침
+            renderAttendance();
         });
-
-        qrInfo.textContent = `⚡ 즉석 수업 QR 코드 (${today} ${timeSlot})`;
-
-        // 오늘 날짜의 출석 현황 표시
-        renderAttendance(today);
-
-        // 스크롤하여 QR 코드가 보이도록
-        qrcodeDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-        if (typeof showToast === 'function') {
-            showToast(`즉석 수업 QR 생성 완료 (${timeSlot})`, 'success');
-        }
     }
-
-    /**
-     * QR 코드 생성 (일반 QR 생성 버튼 제거 - 예약 기반 QR만 사용)
-     * 예약별 QR 생성은 handleGenerateBookingQR 함수 참조
-     */
 
     /**
      * 출석 현황 렌더링
@@ -1363,21 +1332,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            // 현재 강사의 예약 ID 목록 가져오기
-            const teacherBookingIds = allBookings
-                .filter(b => b.teacher_id === user.id)
-                .map(b => b.id);
-
-            // 날짜 및 강사 예약으로 필터링
+            // 날짜 필터링 (filterDate가 없으면 오늘 날짜 사용)
             const targetDate = filterDate || new Date().toISOString().split('T')[0];
-            let todayAttendance = USE_LOCAL_STORAGE_ONLY
+            const todayAttendance = USE_LOCAL_STORAGE_ONLY
                 ? attendance.filter(a => a.date === targetDate)
                 : attendance.filter(a => a.attended_at && a.attended_at.startsWith(targetDate));
-
-            // 강사의 예약에 해당하는 출석만 필터링
-            todayAttendance = todayAttendance.filter(a =>
-                a.booking_id && teacherBookingIds.includes(a.booking_id)
-            );
 
             if (todayAttendance.length === 0) {
                 attendanceList.innerHTML = '<p class="text-gray-500 text-sm">오늘 출석 기록이 없습니다.</p>';
@@ -1453,15 +1412,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 attendance = data.attendances || [];
             }
 
-            // bookingId로 필터링 및 강사 검증
-            const booking = allBookings.find(b => String(b.id) === String(bookingId));
-
-            // 해당 예약이 현재 강사의 것인지 확인
-            if (!booking || booking.teacher_id !== user.id) {
-                attendanceList.innerHTML = '<p class="text-red-500 text-sm">권한이 없는 예약입니다.</p>';
-                return;
-            }
-
+            // bookingId로 필터링
             const bookingAttendance = attendance.filter(a =>
                 String(a.booking_id) === String(bookingId)
             );
@@ -1524,11 +1475,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             showToast('출석 현황을 새로고침했습니다.', 'info');
         }
     });
-
-    // 즉석 수업 QR 생성 버튼
-    if (generateInstantQrBtn) {
-        generateInstantQrBtn.addEventListener('click', handleGenerateInstantQR);
-    }
 
     /**
      * 알림 권한 요청 및 스케줄링

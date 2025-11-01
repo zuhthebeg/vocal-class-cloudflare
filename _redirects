@@ -1,0 +1,2 @@
+# Cloudflare Pages automatically serves index.html for /
+# No redirects needed - static files are served directly

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vocal-class-cache-v1';
+const CACHE_NAME = 'vocal-class-cache-v2';
 const URLS_TO_CACHE = [
     '/',
     '/index.html',
@@ -6,19 +6,12 @@ const URLS_TO_CACHE = [
     '/student.html',
     '/signature.html',
     '/tools.html',
-    '/css/style.css',
     '/js/auth.js',
     '/js/teacher.js',
     '/js/student.js',
     '/js/signature.js',
-    '/js/drawing.js',
-    '/js/recorder.js',
-    '/js/examples.js',
-    '/js/qrcode.min.js',
-    // Avoid caching cross-origin CDN resources which may cause CORS issues during install.
-    // If you want to cache Tailwind, consider bundling a local copy or using a local CSS build.
-    '/images/icon-192x192.svg',
-    '/images/badge.svg'
+    '/js/components.js'
+    // Note: CSS files and external CDN resources are not cached to avoid CORS issues
 ];
 
 // 1. 서비스 워커 설치 및 캐싱

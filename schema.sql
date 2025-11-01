@@ -27,18 +27,18 @@ CREATE TABLE IF NOT EXISTS bookings (
     student_id INTEGER NOT NULL,
     teacher_id INTEGER NOT NULL,
     booking_date DATE NOT NULL, -- 예약한 날짜 'YYYY-MM-DD'
-    time_slot TEXT NOT NULL, -- 예약한 시간 'HH:MM'
+    time_slot TEXT, -- 강사가 최종 선택한 시간 'HH:MM' (승인 시 설정)
+    suggested_time_slots TEXT, -- 학생이 제시한 가능 시간들 JSON: '["18:00","19:00","20:00"]'
     status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'cancelled', 'completed')),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES users(id),
-    FOREIGN KEY (teacher_id) REFERENCES users(id),
-    UNIQUE(student_id, booking_date, time_slot, status) -- 동일 학생이 같은 시간에 중복 예약 방지 (취소된 것 제외)
+    FOREIGN KEY (teacher_id) REFERENCES users(id)
 );
 
 -- 출석 테이블
 CREATE TABLE IF NOT EXISTS attendances (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    booking_id INTEGER NOT NULL,
+    booking_id INTEGER, -- Optional: can be null for walk-in attendance
     student_id INTEGER NOT NULL,
     session_id TEXT NOT NULL,
     signature_url TEXT, -- R2 저장소 경로

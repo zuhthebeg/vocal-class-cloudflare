@@ -39,64 +39,17 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // URL에서 sessionId, bookingId, teacherId 가져오기
+    // URL에서 sessionId와 bookingId 가져오기
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('sessionId') || localStorage.getItem('currentQrSessionId'); // QR 생성 시 저장된 세션 ID 사용
-    let bookingId = urlParams.get('bookingId'); // 예약 ID (승인된 예약에서 출석)
-    const teacherId = urlParams.get('teacherId'); // 강사 ID (즉석 출석용)
-
-    // 즉석 출석 모드 확인
-    const isInstantAttendance = sessionId && sessionId.startsWith('instant_') && teacherId;
+    const bookingId = urlParams.get('bookingId'); // 예약 ID (승인된 예약에서 출석)
 
     if (bookingId) {
         sessionInfo.textContent = `예약 출석 (ID: ${bookingId})`;
-    } else if (isInstantAttendance) {
-        sessionInfo.textContent = `⚡ 즉석 수업 출석`;
     } else if (sessionId) {
         sessionInfo.textContent = `세션 ID: ${sessionId}`; // 세션 ID 표시
     } else {
         sessionInfo.textContent = '세션 ID를 찾을 수 없습니다. 직접 서명하세요.';
-    }
-
-    /**
-     * 즉석 출석을 위한 예약 생성 또는 확인
-     */
-    async function getOrCreateInstantBooking(studentId, teacherId) {
-        try {
-            // 현재 시간 기준으로 30분 단위 시간대 계산
-            const now = new Date();
-            const hour = now.getHours();
-            const minutes = now.getMinutes();
-            const startMin = minutes < 30 ? '00' : '30';
-            const endMin = minutes < 30 ? '30' : '00';
-            const endHour = minutes < 30 ? hour : hour + 1;
-
-            const timeSlot = `${String(hour).padStart(2, '0')}:${startMin}-${String(endHour).padStart(2, '0')}:${endMin}`;
-            const today = new Date().toISOString().split('T')[0];
-
-            // 즉석 예약 생성 API 호출
-            const response = await fetch('/api/bookings/instant', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    studentId: studentId,
-                    teacherId: parseInt(teacherId),
-                    bookingDate: today,
-                    timeSlot: timeSlot
-                })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || '즉석 예약 생성 실패');
-            }
-
-            return data.bookingId;
-        } catch (error) {
-            console.error('Instant booking creation error:', error);
-            throw error;
-        }
     }
 
     // 그리기 시작
@@ -219,42 +172,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const signatureData = canvas.toDataURL(); // Base64 이미지 데이터
         const user = (typeof getUser === 'function' && getUser()) ? getUser() : null;
-
-        // 즉석 출석인 경우 로그인 체크
-        if (isInstantAttendance && !user) {
-            if (typeof showToast === 'function') {
-                showToast('로그인이 필요합니다.', 'error');
-            } else {
-                alert('로그인이 필요합니다.');
-            }
-            // 로그인 페이지로 리다이렉트 (현재 URL을 리턴 URL로 저장)
-            sessionStorage.setItem('returnUrl', window.location.href);
-            window.location.href = '/';
-            return;
-        }
-
         const studentName = user ? user.name : 'Unknown';
         const currentSessionId = sessionId || `manual-${Date.now()}`; // 세션 ID가 없으면 수동 생성
 
         try {
             if (typeof showLoading === 'function') showLoading(true);
-
-            // 즉석 출석인 경우 예약 생성
-            let finalBookingId = bookingId;
-            if (isInstantAttendance && user && user.id) {
-                try {
-                    finalBookingId = await getOrCreateInstantBooking(user.id, teacherId);
-                    console.log('Instant booking created/found:', finalBookingId);
-                } catch (error) {
-                    if (typeof showLoading === 'function') showLoading(false);
-                    if (typeof showToast === 'function') {
-                        showToast('즉석 예약 생성 실패: ' + error.message, 'error');
-                    } else {
-                        alert('즉석 예약 생성 실패: ' + error.message);
-                    }
-                    return;
-                }
-            }
 
             if (USE_LOCAL_STORAGE_ONLY) {
                 // localStorage 모드
@@ -295,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({
                     sessionId: currentSessionId,
                     studentName: studentName,
-                    bookingId: finalBookingId ? parseInt(finalBookingId) : null,
+                    bookingId: bookingId ? parseInt(bookingId) : null,
                     signature: signatureData
                 })
             });

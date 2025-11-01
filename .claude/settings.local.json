@@ -22,7 +22,11 @@
       "Bash(wrangler pages project:*)",
       "Bash(cat:*)",
       "mcp__playwright__browser_console_messages",
-      "mcp__playwright__browser_wait_for"
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_evaluate",
+      "Bash(wrangler pages deployment tail:*)",
+      "Bash(timeout 5 bash:*)",
+      "mcp__playwright__browser_take_screenshot"
     ],
     "deny": [],
     "ask": []

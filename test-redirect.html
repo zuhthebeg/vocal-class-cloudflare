@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Redirect Test</title>
+</head>
+<body>
+    <h1>Redirect Test</h1>
+    <button id="test-btn">Click to go to teacher.html</button>
+
+    <script>
+        document.getElementById('test-btn').addEventListener('click', () => {
+            console.log('Redirecting to teacher.html');
+            window.location.href = 'teacher.html';
+        });
+    </script>
+</body>
+</html>
