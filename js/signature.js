@@ -43,14 +43,43 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const sessionId = urlParams.get('sessionId') || localStorage.getItem('currentQrSessionId'); // QR 생성 시 저장된 세션 ID 사용
     const bookingId = urlParams.get('bookingId'); // 예약 ID (승인된 예약에서 출석)
+    let studentNameFromBooking = null;
 
-    if (bookingId) {
-        sessionInfo.textContent = `예약 출석 (ID: ${bookingId})`;
-    } else if (sessionId) {
-        sessionInfo.textContent = `세션 ID: ${sessionId}`; // 세션 ID 표시
-    } else {
-        sessionInfo.textContent = '세션 ID를 찾을 수 없습니다. 직접 서명하세요.';
+    async function setupPage() {
+        if (bookingId) {
+            try {
+                if (typeof showLoading === 'function') showLoading(true);
+                const response = await fetch(`/api/bookings?bookingId=${bookingId}`);
+                const data = await response.json();
+                if (typeof showLoading === 'function') showLoading(false);
+
+                if (!response.ok || !data.booking) {
+                    throw new Error(data.error || '예약 정보를 불러올 수 없습니다.');
+                }
+
+                const booking = data.booking;
+                studentNameFromBooking = booking.student_name;
+                sessionInfo.innerHTML = `<strong>${studentNameFromBooking}</strong>님, 출석 서명을 진행해주세요.`;
+
+            } catch (error) {
+                if (typeof showLoading === 'function') showLoading(false);
+                sessionInfo.textContent = `오류: ${error.message}`;
+                submitBtn.disabled = true;
+                submitBtn.classList.add('disabled');
+            }
+        } else if (sessionId) {
+            // 익명 출석용 - 이름 입력 필드 표시
+            const nameInputContainer = document.getElementById('name-input-container');
+            if (nameInputContainer) {
+                nameInputContainer.classList.remove('hidden');
+            }
+            sessionInfo.textContent = `출석 서명을 진행해주세요.`;
+        } else {
+            sessionInfo.textContent = '세션 ID를 찾을 수 없습니다.';
+        }
     }
+
+    setupPage();
 
     // 그리기 시작
     function startDrawing(e) {
@@ -172,7 +201,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const signatureData = canvas.toDataURL(); // Base64 이미지 데이터
         const user = (typeof getUser === 'function' && getUser()) ? getUser() : null;
-        const studentName = user ? user.name : 'Unknown';
+
+        // 익명 출석용 이름 입력 필드에서 이름 가져오기
+        const nameInput = document.getElementById('student-name-input');
+        const enteredName = nameInput && !nameInput.classList.contains('hidden') ? nameInput.value.trim() : null;
+
+        // 익명 출석인 경우 (sessionId만 있고 bookingId 없음) 이름 입력 확인
+        if (!bookingId && sessionId && !enteredName) {
+            if (typeof showToast === 'function') {
+                showToast('이름을 입력해주세요.', 'error');
+            } else {
+                alert('이름을 입력해주세요.');
+            }
+            nameInput.focus();
+            return;
+        }
+
+        // bookingId가 있으면 예약 정보에서 가져온 이름을 사용, 익명 출석이면 입력한 이름, 그 외에는 로그인한 사용자 이름 사용
+        const studentName = studentNameFromBooking || enteredName || (user ? user.name : 'Unknown');
         const currentSessionId = sessionId || `manual-${Date.now()}`; // 세션 ID가 없으면 수동 생성
 
         try {
