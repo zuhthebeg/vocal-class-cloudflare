@@ -92,6 +92,7 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
     const studentId = url.searchParams.get('studentId');
     const teacherId = url.searchParams.get('teacherId');
     const bookingDate = url.searchParams.get('bookingDate');
+    const bookingId = url.searchParams.get('bookingId'); // For fetching a single booking
 
     let query = `
       SELECT
@@ -101,36 +102,54 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
         b.suggested_time_slots,
         b.status,
         b.created_at,
+        b.student_id,
         u_student.name as student_name,
+        b.teacher_id,
         u_teacher.name as teacher_name
       FROM bookings b
       JOIN users u_student ON b.student_id = u_student.id
       JOIN users u_teacher ON b.teacher_id = u_teacher.id
-      WHERE 1=1
     `;
 
     const params: any[] = [];
 
-    // 학생별 조회
-    if (studentId) {
-      query += ' AND b.student_id = ?';
-      params.push(studentId);
-    }
-
-    // 강사별 조회
-    if (teacherId) {
-      query += ' AND b.teacher_id = ?';
-      params.push(teacherId);
-    }
-
-    // 특정 날짜 조회
-    if (bookingDate) {
-      query += ' AND b.booking_date = ?';
-      params.push(bookingDate);
+    if (bookingId) {
+      query += ' WHERE b.id = ?';
+      params.push(bookingId);
+    } else {
+      query += ' WHERE 1=1';
+      // 학생별 조회
+      if (studentId) {
+        query += ' AND b.student_id = ?';
+        params.push(studentId);
+      }
+      // 강사별 조회
+      if (teacherId) {
+        query += ' AND b.teacher_id = ?';
+        params.push(teacherId);
+      }
+      // 특정 날짜 조회
+      if (bookingDate) {
+        query += ' AND b.booking_date = ?';
+        params.push(bookingDate);
+      }
     }
 
     query += ' ORDER BY b.booking_date DESC, b.time_slot DESC LIMIT 200';
 
+    // 단일 조회인 경우
+    if (bookingId) {
+        const booking: any = await env.DB.prepare(query).bind(...params).first();
+        if (booking) {
+            booking.suggested_time_slots = booking.suggested_time_slots ? JSON.parse(booking.suggested_time_slots) : null;
+        }
+        return new Response(JSON.stringify({ booking }), { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json' } 
+        });
+    }
+
+    // 목록 조회인 경우
     const { results } = await env.DB.prepare(query).bind(...params).all();
 
     // Parse JSON strings to arrays for suggested_time_slots
@@ -149,7 +168,7 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
   } catch (error) {
     console.error('Booking fetch error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
@@ -289,69 +308,37 @@ export async function onRequestPatch(context: { request: Request; env: Env }) {
   }
 }
 
-// DELETE: 예약 취소
+// DELETE: 예약 삭제 (Admin) 또는 전체 삭제
 export async function onRequestDelete(context: { request: Request; env: Env }) {
   try {
     const { request, env } = context;
     const url = new URL(request.url);
     const bookingId = url.searchParams.get('id');
 
-    if (!bookingId) {
-      return new Response(JSON.stringify({ error: 'Booking ID required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    // ID가 있으면 해당 예약만 삭제
+    if (bookingId) {
+      // First, delete related attendance records to avoid orphaned data
+      await env.DB.prepare('DELETE FROM attendances WHERE booking_id = ?').bind(bookingId).run();
+      // Now, delete the booking itself
+      const result = await env.DB.prepare('DELETE FROM bookings WHERE id = ?').bind(bookingId).run();
 
-    // 예약이 존재하는지 확인
-    const booking = await env.DB.prepare(`
-      SELECT status FROM bookings WHERE id = ?
-    `)
-      .bind(bookingId)
-      .first();
-
-    if (!booking) {
-      return new Response(
-        JSON.stringify({ error: 'Booking not found' }),
-        {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    if (booking.status === 'cancelled') {
-      return new Response(
-        JSON.stringify({ error: 'Booking is already cancelled' }),
-        {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
-    }
-
-    // 예약 취소 (상태 업데이트)
-    await env.DB.prepare(`
-      UPDATE bookings SET status = 'cancelled' WHERE id = ?
-    `)
-      .bind(bookingId)
-      .run();
-
-    return new Response(
-      JSON.stringify({ ok: true, message: 'Booking cancelled' }),
-      {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
+      if (result.meta.changes === 0) {
+        return new Response(JSON.stringify({ error: 'Booking not found' }), { status: 404 });
       }
-    );
+      return new Response(JSON.stringify({ ok: true, message: `Booking ${bookingId} deleted` }));
+    }
+
+    // ID가 없으면 전체 예약 삭제
+    // Also delete all attendance records that might be linked.
+    await env.DB.batch([
+        env.DB.prepare('DELETE FROM attendances'),
+        env.DB.prepare('DELETE FROM bookings')
+    ]);
+
+    return new Response(JSON.stringify({ ok: true, message: 'All bookings and attendance records have been deleted.' }));
+
   } catch (error) {
-    console.error('Booking cancellation error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    console.error('Booking deletion error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
   }
 }

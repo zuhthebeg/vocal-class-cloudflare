@@ -6,6 +6,12 @@ CREATE TABLE IF NOT EXISTS users (
     name TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('teacher', 'student')),
     email TEXT,
+    start_date DATE,
+    payment_info TEXT,
+    notes TEXT,
+    end_date DATE,
+    bank_account TEXT,
+    payment_status TEXT CHECK(payment_status IN ('paid', 'unpaid')) DEFAULT 'unpaid',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
