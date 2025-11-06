@@ -280,15 +280,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 키보드 이벤트 리스너 (Shift, Ctrl 감지, Undo/Redo)
     document.addEventListener('keydown', (e) => {
-        // Ctrl+Shift+Z: 다시실행 (Redo)
-        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') {
+        // input, textarea 필드에 포커스가 있으면 키보드 이벤트 무시 (붙여넣기 등을 위해)
+        const isInputFocused = document.activeElement.tagName === 'INPUT' ||
+                               document.activeElement.tagName === 'TEXTAREA';
+
+        // Ctrl+Shift+Z: 다시실행 (Redo) - input 필드가 아닐 때만
+        if (!isInputFocused && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') {
             e.preventDefault();
             redo();
             return;
         }
 
-        // Ctrl+Z: 실행취소 (Undo)
-        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        // Ctrl+Z: 실행취소 (Undo) - input 필드가 아닐 때만
+        if (!isInputFocused && (e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
             e.preventDefault();
             undo();
             return;
@@ -298,7 +302,10 @@ document.addEventListener('DOMContentLoaded', () => {
             shiftPressed = true;
         } else if (e.key === 'Control' || e.ctrlKey) {
             ctrlPressed = true;
-            e.preventDefault(); // 브라우저 기본 동작 방지
+            // input 필드가 아닐 때만 기본 동작 방지
+            if (!isInputFocused) {
+                e.preventDefault();
+            }
         }
     });
 

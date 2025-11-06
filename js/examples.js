@@ -17,9 +17,23 @@ document.addEventListener('DOMContentLoaded', () => {
      * @returns {string|null} 영상 ID 또는 null
      */
     function getYouTubeVideoId(url) {
-        const regExp = /^(?:https?:\/\/)?(?:www\.)?(?:m\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=|embed\/|v\/|)([^\s&]+)$/;
-        const match = url.match(regExp);
-        return (match && match[1].length === 11) ? match[1] : null;
+        // youtu.be 형식 처리
+        let match = url.match(/(?:https?:\/\/)?(?:www\.)?youtu\.be\/([a-zA-Z0-9_-]{11})/);
+        if (match) return match[1];
+
+        // youtube.com/watch?v= 형식 처리
+        match = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
+        if (match) return match[1];
+
+        // youtube.com/embed/ 형식 처리
+        match = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+        if (match) return match[1];
+
+        // youtube.com/v/ 형식 처리
+        match = url.match(/(?:https?:\/\/)?(?:www\.)?youtube\.com\/v\/([a-zA-Z0-9_-]{11})/);
+        if (match) return match[1];
+
+        return null;
     }
 
     /**
@@ -62,8 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const videoCard = document.createElement('div');
             videoCard.className = 'bg-gray-50 p-4 rounded-lg shadow-sm';
+
+            // 제목이 있으면 제목 표시, 없으면 섬네일만 표시
+            const titleHtml = video.title ? `<h3 class="font-bold mb-2">${video.title}</h3>` : '';
+
             videoCard.innerHTML = `
-                <h3 class="font-bold mb-2">${video.title}</h3>
+                ${titleHtml}
                 <div class="relative" style="padding-bottom: 56.25%; height: 0; overflow: hidden;">
                     <iframe
                         class="absolute top-0 left-0 w-full h-full"
@@ -96,16 +114,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const title = videoTitleInput.value.trim();
         const url = videoUrlInput.value.trim();
 
-        if (!title || !url) {
-            alert('제목과 YouTube URL을 모두 입력해주세요.');
+        if (!url) {
+            alert('YouTube URL을 입력해주세요.');
             return;
         }
 
         if (!getYouTubeVideoId(url)) {
-            alert('유효한 YouTube URL을 입력해주세요.');
+            alert('유효한 YouTube URL을 입력해주세요.\n예: https://youtu.be/rnSaeWKCrkg 또는 https://www.youtube.com/watch?v=rnSaeWKCrkg');
             return;
         }
 
+        // 제목은 선택사항 (빈 문자열도 허용)
         examples.push({ title, url });
         localStorage.setItem(EXAMPLES_KEY, JSON.stringify(examples));
         videoTitleInput.value = '';
