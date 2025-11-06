@@ -31,6 +31,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let canvasMemory = null; // 캔버스 상태 저장용 변수
 
+    // 실행취소/다시실행을 위한 히스토리 스택
+    let undoStack = [];
+    let redoStack = [];
+    const MAX_HISTORY = 50; // 최대 히스토리 개수
+
     // 도형 그리기용 변수
     let shiftPressed = false;  // Shift 키: 직선
     let ctrlPressed = false;   // Ctrl 키: 원/사각형
@@ -38,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let startY = 0;
     let tempImageData = null;  // 임시 캔버스 상태 저장
 
-    // 캔버스 상태 저장
+    // 캔버스 상태 저장 (실행취소용)
     function saveCanvasState() {
         canvasMemory = ctx.getImageData(0, 0, canvas.width, canvas.height);
     }
@@ -47,6 +52,46 @@ document.addEventListener('DOMContentLoaded', () => {
     function restoreCanvasState() {
         if (canvasMemory) {
             ctx.putImageData(canvasMemory, 0, 0);
+        }
+    }
+
+    // 히스토리에 현재 상태 저장
+    function saveToHistory() {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        undoStack.push(imageData);
+
+        // 최대 히스토리 개수 제한
+        if (undoStack.length > MAX_HISTORY) {
+            undoStack.shift();
+        }
+
+        // 새로운 작업이 추가되면 redo 스택 초기화
+        redoStack = [];
+    }
+
+    // 실행취소 (Ctrl+Z)
+    function undo() {
+        if (undoStack.length > 0) {
+            // 현재 상태를 redo 스택에 저장
+            const currentState = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            redoStack.push(currentState);
+
+            // undo 스택에서 이전 상태 가져와서 복원
+            const previousState = undoStack.pop();
+            ctx.putImageData(previousState, 0, 0);
+        }
+    }
+
+    // 다시실행 (Ctrl+Shift+Z)
+    function redo() {
+        if (redoStack.length > 0) {
+            // 현재 상태를 undo 스택에 저장
+            const currentState = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            undoStack.push(currentState);
+
+            // redo 스택에서 다음 상태 가져와서 복원
+            const nextState = redoStack.pop();
+            ctx.putImageData(nextState, 0, 0);
         }
     }
 
@@ -223,13 +268,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 그리기 종료
     function stopDrawing() {
-        drawing = false;
-        tempImageData = null; // 임시 이미지 데이터 초기화
-        ctx.beginPath(); // 새로운 경로 시작
+        if (drawing) {
+            drawing = false;
+            tempImageData = null; // 임시 이미지 데이터 초기화
+            ctx.beginPath(); // 새로운 경로 시작
+
+            // 그리기가 완료되면 히스토리에 저장
+            saveToHistory();
+        }
     }
 
-    // 키보드 이벤트 리스너 (Shift, Ctrl 감지)
+    // 키보드 이벤트 리스너 (Shift, Ctrl 감지, Undo/Redo)
     document.addEventListener('keydown', (e) => {
+        // Ctrl+Shift+Z: 다시실행 (Redo)
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') {
+            e.preventDefault();
+            redo();
+            return;
+        }
+
+        // Ctrl+Z: 실행취소 (Undo)
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+            e.preventDefault();
+            undo();
+            return;
+        }
+
         if (e.key === 'Shift') {
             shiftPressed = true;
         } else if (e.key === 'Control' || e.ctrlKey) {
@@ -271,6 +335,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 캔버스 지우기
     clearCanvasBtn.addEventListener('click', () => {
+        saveToHistory(); // 지우기 전 상태 저장
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     });
 
@@ -433,6 +498,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     // 기존 드로잉 위에 클립아트 오버레이
                     ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
 
+                    // 클립아트 추가 후 히스토리에 저장
+                    saveToHistory();
+
                 } catch (err) {
                     console.warn('이미지 그리기 실패:', err);
                     restoreCanvasState();
@@ -506,7 +574,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             const loadImg = new Image();
                             loadImg.onload = () => {
-                                saveCanvasState();
+                                saveToHistory(); // 교체 전 상태 저장
                                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                                 ctx.drawImage(loadImg, 0, 0, canvas.width, canvas.height);
                             };
@@ -589,7 +657,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.warn('이미지 복원 실패:', e);
             }
         }, 100);
-    });    // 초기 로드
+    });
+
+    // 초기 로드
     loadSavedDrawings();
     loadSavedCliparts(); // 저장된 클립아트 로드
+
+    // 초기 빈 캔버스 상태를 히스토리에 저장
+    setTimeout(() => {
+        saveToHistory();
+    }, 100);
 });
