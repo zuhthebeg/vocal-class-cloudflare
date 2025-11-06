@@ -12,7 +12,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const prevMonthBtn = document.getElementById('prev-month-btn');
     const nextMonthBtn = document.getElementById('next-month-btn');
     const bookingList = document.getElementById('booking-list');
-    const generateQrBtn = document.getElementById('generate-instant-qr-btn');
+    const generateQrBtn = document.getElementById('generate-qr-btn');
+    const generateInstantQrBtn = document.getElementById('generate-instant-qr-btn');
     const qrcodeDiv = document.getElementById('qrcode');
     const qrInfo = document.getElementById('qr-info');
     const attendanceList = document.getElementById('attendance-list');
@@ -238,6 +239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let bookedSlotsInfo = {}; // 예약 정보 매핑 (slotKey -> {studentName, ...})
     let allBookings = []; // 모든 예약 데이터
     let bookingsByDate = {}; // 날짜별 예약 데이터 (key: "YYYY-MM-DD", value: array of bookings)
+    let allStudents = []; // 모든 학생 데이터 (start_date, end_date 포함)
     const TEACHER_SCHEDULE_KEY = 'teacherSchedule';
     const BOOKINGS_KEY = 'bookings';
 
@@ -247,13 +249,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedDate = null; // 선택된 날짜 (YYYY-MM-DD)
 
     // localStorage 모드 체크
-    const isDevelopmentPort = ['3000', '8000', '8080', '5000', '5500'].includes(window.location.port);
+    const isDevelopmentPort = ['3000', '8000', '8080', '5000', '5500', '8788'].includes(window.location.port);
     const isLocalhost = window.location.hostname === 'localhost' ||
                        window.location.hostname === '127.0.0.1' ||
                        window.location.hostname.startsWith('192.168.') ||
                        window.location.hostname.startsWith('10.') ||
                        !window.location.hostname;
-    const USE_LOCAL_STORAGE_ONLY = isLocalhost || isDevelopmentPort;
+    const USE_LOCAL_STORAGE_ONLY = false; // API 모드 강제 사용
+    console.log('🚀 [INIT] USE_LOCAL_STORAGE_ONLY =', USE_LOCAL_STORAGE_ONLY, 'port:', window.location.port);
 
     // 드래그 선택 상태
     let isDragging = false;
@@ -300,6 +303,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             const dateBookings = bookingsByDate[dateStr] || [];
             const hasBookings = dateBookings.length > 0;
 
+            // 이 날짜에 수업 기간에 해당하는 학생 수 계산
+            const studentsInPeriod = allStudents.filter(student => {
+                if (!student.start_date || !student.end_date) return false;
+                return dateStr >= student.start_date && dateStr <= student.end_date;
+            });
+            const studentCount = studentsInPeriod.length;
+
             // 예약 상태에 따라 다른 색상
             let statusBadge = '';
             if (hasBookings) {
@@ -320,7 +330,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (hasBookings) classNames += ' bg-blue-50';
             if (hasSchedule) classNames += ' bg-green-50';
 
-            calendarHTML += `<div class="calendar-day ${classNames}" data-date="${dateStr}">
+            // 학생 수업 기간 표시 - 연한 주황색 배경
+            if (studentCount > 0) {
+                classNames += ' border-l-4 border-orange-300';
+            }
+
+            calendarHTML += `<div class="calendar-day ${classNames}" data-date="${dateStr}" title="${studentCount > 0 ? `수강생 수업기간` : ''}">
                 <div>${day}</div>
                 ${statusBadge ? `<div class="text-xs">${statusBadge}</div>` : ''}
             </div>`;
@@ -388,6 +403,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         dateBookingsPanel.classList.remove('hidden');
+    }
+
+    /**
+     * 학생 목록 조회 (나에게 예약 요청한 학생만, start_date, end_date 포함)
+     */
+    async function loadStudents() {
+        try {
+            const user = getUser();
+            if (!user || !user.id) {
+                console.warn('No user found, cannot load students');
+                allStudents = [];
+                return;
+            }
+
+            const response = await fetch(`/api/auth?role=student&teacherId=${user.id}`);
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to load students');
+            }
+
+            allStudents = data.users || [];
+            console.log(`📚 Loaded ${allStudents.length} students who have booked with this teacher`);
+            renderCalendar(); // 학생 데이터 로드 후 달력 다시 렌더링
+        } catch (error) {
+            console.error('Load students error:', error);
+            allStudents = [];
+        }
     }
 
     // 이전/다음 달 버튼
@@ -1026,11 +1069,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 bookingItem.className = `p-4 border rounded-md shadow-sm ${statusClass}`;
+                const timeDisplay = booking.time_slot ? booking.time_slot : '(시간 미정)';
                 bookingItem.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div class="flex-1">
                             <p class="font-semibold text-lg">${booking.student_name}님</p>
-                            <p class="text-gray-700">${booking.booking_date} ${booking.time_slot || '(시간 미정)'}</p>
+                            <p class="text-gray-700">${booking.booking_date} ${timeDisplay}</p>
                             <p class="text-sm text-gray-600">요청일: ${booking.created_at ? new Date(booking.created_at).toLocaleDateString('ko-KR') : ''}</p>
                             ${suggestedTimesHtml}
                             <p class="text-sm font-semibold mt-1 ${
@@ -1114,8 +1158,31 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        if (!confirm(`${selectedTime}으로 이 예약을 승인하시겠습니까?`)) {
+        // 현재 예약의 날짜 가져오기
+        const currentBooking = allBookings.find(b => b.id === bookingId);
+        if (!currentBooking) {
+            alert('예약 정보를 찾을 수 없습니다.');
             return;
+        }
+
+        // 같은 날짜, 같은 시간에 이미 승인된 예약이 있는지 확인
+        const conflictingBooking = allBookings.find(b =>
+            b.id !== bookingId &&
+            b.booking_date === currentBooking.booking_date &&
+            b.time_slot === selectedTime &&
+            b.status === 'approved'
+        );
+
+        // 중복 예약이 있으면 경고 메시지 표시
+        if (conflictingBooking) {
+            const confirmMessage = `같은 시간(${selectedTime})에 이미 승인된 예약이 있습니다.\n학생: ${conflictingBooking.student_name}\n\n그래도 승인하시겠습니까?`;
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+        } else {
+            if (!confirm(`${selectedTime}으로 이 예약을 승인하시겠습니까?`)) {
+                return;
+            }
         }
 
         try {
@@ -1275,32 +1342,62 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * QR 코드 생성
+     * 즉석 수업 QR 코드 생성
      */
-    if (generateQrBtn) {
-        generateQrBtn.addEventListener('click', () => {
-            const sessionId = `session-${Date.now()}`; // 현재 시간 기반 세션 ID
-            const qrData = `${window.location.origin}/signature.html?sessionId=${sessionId}`;
-    
-            qrcodeDiv.innerHTML = ''; // 기존 QR 코드 제거
-            new QRCode(qrcodeDiv, {
-                text: qrData,
-                width: 200,
-                height: 200,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
-            });
-            qrInfo.textContent = `세션 ID: ${sessionId} (이 QR 코드를 스캔하여 출석하세요)`;
-    
-            // 생성된 세션 ID를 localStorage에 저장 (예약 현황과 연결하기 위함)
-            // 실제로는 이 세션 ID를 예약 정보와 함께 저장하거나, 출석 시 사용
-            localStorage.setItem('currentQrSessionId', sessionId);
-    
-            // QR 생성 후 출석 현황 새로고침
-            renderAttendance();
+    function handleGenerateInstantQR() {
+        if (!user || !user.id) {
+            if (typeof showToast === 'function') {
+                showToast('로그인이 필요합니다.', 'error');
+            } else {
+                alert('로그인이 필요합니다.');
+            }
+            return;
+        }
+
+        // 현재 시간 기준으로 30분 단위 시간대 계산
+        const now = new Date();
+        const hour = now.getHours();
+        const minutes = now.getMinutes();
+        const startMin = minutes < 30 ? '00' : '30';
+        const endMin = minutes < 30 ? '30' : '00';
+        const endHour = minutes < 30 ? hour : hour + 1;
+
+        const timeSlot = `${String(hour).padStart(2, '0')}:${startMin}-${String(endHour).padStart(2, '0')}:${endMin}`;
+        const today = new Date().toISOString().split('T')[0];
+
+        // 즉석 세션 ID 생성
+        const sessionId = `instant_${user.id}_${Date.now()}`;
+
+        // QR 데이터 생성
+        const qrData = `${window.location.origin}/signature?sessionId=${sessionId}&teacherId=${user.id}`;
+
+        qrcodeDiv.innerHTML = ''; // 기존 QR 코드 제거
+        new QRCode(qrcodeDiv, {
+            text: qrData,
+            width: 200,
+            height: 200,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
         });
+
+        qrInfo.textContent = `⚡ 즉석 수업 QR 코드 (${today} ${timeSlot})`;
+
+        // 오늘 날짜의 출석 현황 표시
+        renderAttendance(today);
+
+        // 스크롤하여 QR 코드가 보이도록
+        qrcodeDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        if (typeof showToast === 'function') {
+            showToast(`즉석 수업 QR 생성 완료 (${timeSlot})`, 'success');
+        }
     }
+
+    /**
+     * QR 코드 생성 (일반 QR 생성 버튼 제거 - 예약 기반 QR만 사용)
+     * 예약별 QR 생성은 handleGenerateBookingQR 함수 참조
+     */
 
     /**
      * 출석 현황 렌더링
@@ -1332,11 +1429,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
-            // 날짜 필터링 (filterDate가 없으면 오늘 날짜 사용)
+            // 현재 강사의 예약 ID 목록 가져오기
+            const teacherBookingIds = allBookings
+                .filter(b => b.teacher_id === user.id)
+                .map(b => b.id);
+
+            // 날짜 및 강사 예약으로 필터링
             const targetDate = filterDate || new Date().toISOString().split('T')[0];
-            const todayAttendance = USE_LOCAL_STORAGE_ONLY
+            let todayAttendance = USE_LOCAL_STORAGE_ONLY
                 ? attendance.filter(a => a.date === targetDate)
                 : attendance.filter(a => a.attended_at && a.attended_at.startsWith(targetDate));
+
+            // 강사의 예약에 해당하는 출석만 필터링
+            todayAttendance = todayAttendance.filter(a =>
+                a.booking_id && teacherBookingIds.includes(a.booking_id)
+            );
 
             if (todayAttendance.length === 0) {
                 attendanceList.innerHTML = '<p class="text-gray-500 text-sm">오늘 출석 기록이 없습니다.</p>';
@@ -1412,7 +1519,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 attendance = data.attendances || [];
             }
 
-            // bookingId로 필터링
+            // bookingId로 필터링 및 강사 검증
+            const booking = allBookings.find(b => String(b.id) === String(bookingId));
+
+            // 해당 예약이 현재 강사의 것인지 확인
+            if (!booking || booking.teacher_id !== user.id) {
+                attendanceList.innerHTML = '<p class="text-red-500 text-sm">권한이 없는 예약입니다.</p>';
+                return;
+            }
+
             const bookingAttendance = attendance.filter(a =>
                 String(a.booking_id) === String(bookingId)
             );
@@ -1475,6 +1590,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             showToast('출석 현황을 새로고침했습니다.', 'info');
         }
     });
+
+    // 즉석 수업 QR 생성 버튼
+    if (generateInstantQrBtn) {
+        generateInstantQrBtn.addEventListener('click', handleGenerateInstantQR);
+    }
 
     /**
      * 알림 권한 요청 및 스케줄링
@@ -1580,6 +1700,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateScheduleTimeOptions(); // 스케줄 시간 옵션 생성
     initializeTimeSelects(); // 시간 선택 드롭다운 초기화
     renderCalendar(); // 달력 초기 렌더링
+    await loadStudents(); // 학생 목록 로드 (start_date, end_date 포함)
     await loadSchedule();
     await renderBookings();
     renderAttendance(); // 출석 현황 표시
@@ -1591,5 +1712,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     if (closeScheduleBtn) {
         closeScheduleBtn.addEventListener('click', closeSchedulePanelFunc);
+    }
+
+    // 현재 시간으로 QR 생성 버튼 이벤트 리스너
+    if (generateQrBtn) {
+        generateQrBtn.addEventListener('click', () => {
+            // 현재 시간을 sessionId로 사용 (익명 서명용)
+            const now = new Date();
+            const sessionId = now.toISOString();
+            const qrData = `${window.location.origin}/signature?sessionId=${encodeURIComponent(sessionId)}`;
+
+            qrcodeDiv.innerHTML = ''; // 기존 QR 코드 제거
+            new QRCode(qrcodeDiv, {
+                text: qrData,
+                width: 200,
+                height: 200,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+
+            // 한국 시간으로 표시
+            const kstOffset = 9 * 60;
+            const kstNow = new Date(now.getTime() + kstOffset * 60 * 1000);
+            const timeStr = kstNow.toISOString().substring(0, 19).replace('T', ' ');
+
+            qrInfo.textContent = `익명 출석용 QR 코드 (생성시간: ${timeStr} KST)`;
+
+            // 출석 현황 새로고침
+            renderAttendance();
+
+            if (typeof showToast === 'function') {
+                showToast('익명 출석용 QR 코드가 생성되었습니다.', 'success');
+            }
+        });
+    }
+
+    // 출석 새로고침 버튼 이벤트 리스너
+    if (refreshAttendanceBtn) {
+        refreshAttendanceBtn.addEventListener('click', () => {
+            renderAttendance();
+            if (typeof showToast === 'function') {
+                showToast('출석 현황이 새로고침되었습니다.', 'success');
+            }
+        });
     }
 });

@@ -17,6 +17,12 @@
             <p id="session-info" class="text-center text-gray-600 mb-4" aria-live="polite">세션 정보를 불러오는 중...</p>
         </header>
 
+        <!-- 이름 입력 필드 (익명 출석용) -->
+        <div id="name-input-container" class="mb-4 hidden">
+            <label for="student-name-input" class="block text-sm font-medium text-gray-700 mb-2">이름을 입력해주세요</label>
+            <input type="text" id="student-name-input" placeholder="이름" class="w-full p-2 border border-gray-300 rounded-md" />
+        </div>
+
         <div class="canvas-container bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg" role="group" aria-labelledby="signature-label">
             <span id="signature-label" class="sr-only">서명 캔버스</span>
             <canvas id="signature-pad"
@@ -32,8 +38,8 @@
         <button onclick="location.href='/'" class="btn btn-outline w-full mt-4" aria-label="홈 페이지로 이동">홈으로</button>
     </main>
 
-    <script src="js/components.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/signature.js"></script>
+    <script src="js/components.js?v=7"></script>
+    <script src="js/auth.js?v=7"></script>
+    <script src="js/signature.js?v=7"></script>
 </body>
 </html>
