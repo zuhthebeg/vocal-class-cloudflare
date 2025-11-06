@@ -55,7 +55,7 @@
                         <button id="clear-canvas-btn"
                                 class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-2"
                                 aria-label="캔버스 전체 지우기">
-                            <span class="material-icons" aria-hidden="true">delete_sweep</span>전체 지우기
+                            <span class="material-icons" aria-hidden="true">delete_sweep</span>Clear
                         </button>
                         <button id="save-drawing-btn"
                                 class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
@@ -86,6 +86,8 @@
                 <div class="text-xs text-gray-500 mb-2 flex flex-wrap gap-3">
                     <span>💡 <kbd class="px-1 py-0.5 bg-gray-200 rounded text-xs">Shift</kbd> + 드래그: 직선</span>
                     <span>💡 <kbd class="px-1 py-0.5 bg-gray-200 rounded text-xs">Ctrl</kbd> + 드래그: 원</span>
+                    <span>💡 <kbd class="px-1 py-0.5 bg-gray-200 rounded text-xs">Ctrl+Z</kbd>: 실행취소</span>
+                    <span>💡 <kbd class="px-1 py-0.5 bg-gray-200 rounded text-xs">Ctrl+Shift+Z</kbd>: 다시실행</span>
                 </div>
                 
                 <!-- 메인 에디터 영역 -->
@@ -160,10 +162,11 @@
                 <div class="add-video-form mb-6 p-4 border rounded-lg">
                     <h3 class="font-bold mb-2">새 영상 추가</h3>
                     <div class="flex flex-col md:flex-row gap-4">
-                        <input type="text" id="video-title" placeholder="영상 제목" class="flex-grow px-3 py-2 border rounded-md">
-                        <input type="url" id="video-url" placeholder="YouTube URL" class="flex-grow px-3 py-2 border rounded-md">
+                        <input type="text" id="video-title" placeholder="영상 제목 (선택사항)" class="flex-grow px-3 py-2 border rounded-md">
+                        <input type="url" id="video-url" placeholder="YouTube URL (Ctrl+V로 붙여넣기)" class="flex-grow px-3 py-2 border rounded-md">
                         <button id="add-video-btn" class="bg-blue-500 text-white px-4 py-2 rounded-md">추가</button>
                     </div>
+                    <p class="text-xs text-gray-500 mt-2">💡 제목 없이 URL만 입력해도 추가할 수 있습니다</p>
                 </div>
                 <div class="video-list-container">
                     <input type="search" id="video-search" placeholder="초성/키워드로 검색..." class="w-full px-3 py-2 border rounded-md mb-4">
