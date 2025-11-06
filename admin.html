@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>어드민 페이지</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/components.css"> 
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800">데이터 관리</h1>
+
+        <!-- Teachers -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">강사 (Teachers)</h2>
+            <div class="flex space-x-2 mb-4">
+                <button id="load-teachers-btn" class="btn btn-primary">강사 목록 불러오기</button>
+                <button id="delete-all-teachers-btn" class="btn btn-danger">전체 삭제</button>
+            </div>
+            <div id="teachers-list" class="mt-4 overflow-x-auto"></div>
+        </div>
+
+        <!-- Students -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">수강생 (Students)</h2>
+            <div class="flex space-x-2 mb-4">
+                <button id="load-students-btn" class="btn btn-primary">수강생 목록 불러오기</button>
+                <button id="delete-all-students-btn" class="btn btn-danger">전체 삭제</button>
+            </div>
+            <div id="students-list" class="mt-4 overflow-x-auto"></div>
+        </div>
+
+        <!-- Bookings -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">수업 예약 (Bookings)</h2>
+            <div class="flex space-x-2 mb-4">
+                <button id="load-bookings-btn" class="btn btn-primary">예약 목록 불러오기</button>
+                <button id="delete-all-bookings-btn" class="btn btn-danger">전체 삭제</button>
+            </div>
+            <div id="bookings-list" class="mt-4 overflow-x-auto"></div>
+        </div>
+
+        <!-- Attendance -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+            <h2 class="text-xl font-semibold mb-4">출석 기록 (Attendance)</h2>
+            <div class="flex space-x-2 mb-4">
+                <button id="load-attendance-btn" class="btn btn-primary">출석 기록 불러오기</button>
+                <button id="delete-all-attendance-btn" class="btn btn-danger">전체 삭제</button>
+            </div>
+            <div id="attendance-list" class="mt-4 overflow-x-auto"></div>
+        </div>
+    </div>
+
+    <script src="js/admin.js"></script>
+</body>
+</html>

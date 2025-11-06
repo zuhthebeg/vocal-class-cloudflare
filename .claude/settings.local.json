@@ -26,7 +26,8 @@
       "mcp__playwright__browser_evaluate",
       "Bash(wrangler pages deployment tail:*)",
       "Bash(timeout 5 bash:*)",
-      "mcp__playwright__browser_take_screenshot"
+      "mcp__playwright__browser_take_screenshot",
+      "Bash(gemini:*)"
     ],
     "deny": [],
     "ask": []

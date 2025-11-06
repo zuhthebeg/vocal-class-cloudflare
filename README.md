@@ -1,6 +1,6 @@
 # Vocal Class WebApp
 
-보컬 수업 관리를 위한 강사 및 수강생용 웹 애플리케이션 프로토타입입니다. 서버 없이 `localStorage`를 활용하여 데이터를 저장하며, PWA(Progressive Web App)를 지원합니다.
+보컬 수업 관리를 위한 강사 및 수강생용 웹 애플리케이션 프로토타입입니다. 서버 없이 일부 `localStorage`를 활용하여 데이터를 저장하며, PWA(Progressive Web App)를 지원합니다.
 
 ## 🚀 주요 기능
 
