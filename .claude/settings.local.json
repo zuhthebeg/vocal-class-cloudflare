@@ -27,7 +27,8 @@
       "Bash(wrangler pages deployment tail:*)",
       "Bash(timeout 5 bash:*)",
       "mcp__playwright__browser_take_screenshot",
-      "Bash(gemini:*)"
+      "Bash(gemini:*)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []
