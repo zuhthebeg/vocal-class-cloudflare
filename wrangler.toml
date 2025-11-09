@@ -22,5 +22,7 @@ database_name = "vocal-class-db"
 database_id = "9f90ac1e-f6d8-4a9b-9e9d-2ae5548ac054"
 
 # 로컬 개발용 환경 변수
-[vars]
-GEMINI_API_KEY = "AIzaSyDnEBUVW9oaVCIQaDKRq2I80ZhLDpRg2pE"
+# Git 연동 배포 시 충돌 방지를 위해 주석 처리
+# (로컬 개발 시에만 주석 해제하여 사용)
+# [vars]
+# GEMINI_API_KEY = "AIzaSyDnEBUVW9oaVCIQaDKRq2I80ZhLDpRg2pE"
