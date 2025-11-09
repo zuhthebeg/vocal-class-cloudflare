@@ -4,8 +4,9 @@ const USER_KEY = 'vocalUser';
  * 로그인 처리 함수
  * @param {string} name - 사용자 이름
  * @param {string} role - 사용자 역할 ('teacher' 또는 'student')
+ * @param {string|null} categoryId - 강사의 수업 카테고리 ID (강사인 경우에만)
  */
-async function login(name, role) {
+async function login(name, role, categoryId = null) {
     if (!name || !role) {
         if (typeof showToast === 'function') {
             showToast('이름과 역할을 모두 입력해주세요.', 'error');
@@ -21,53 +22,7 @@ async function login(name, role) {
             showLoading(true);
         }
 
-        // localStorage 전용 모드 체크 (API 서버가 없을 때)
-        // 포트 8788은 wrangler pages dev이므로 API 사용
-        // 기타 개발 포트(3000, 8000 등)는 API 없이 localStorage만 사용
-        const isWranglerDev = window.location.port === '8788';
-        const isDevelopmentPort = ['3000', '8000', '8080', '5000', '5500'].includes(window.location.port);
-        const isLocalhost = window.location.hostname === 'localhost' ||
-                           window.location.hostname === '127.0.0.1' ||
-                           window.location.hostname.startsWith('192.168.') ||
-                           window.location.hostname.startsWith('10.') ||
-                           !window.location.hostname;
-
-        // wrangler dev나 프로덕션 환경이 아니면 localStorage만 사용
-        const USE_LOCAL_STORAGE_ONLY = !isWranglerDev && (isLocalhost || isDevelopmentPort);
-
-        let user;
-
-        if (USE_LOCAL_STORAGE_ONLY) {
-            // localStorage 전용 모드: API 호출 없이 로컬에서만 작동
-            console.warn('🔧 개발 모드: API 없이 localStorage만 사용합니다.');
-
-            // 간단한 ID 생성 (타임스탬프 기반)
-            const userId = Date.now();
-            user = { id: userId, name, role };
-
-            // localStorage에 저장
-            localStorage.setItem(USER_KEY, JSON.stringify(user));
-
-            if (typeof showLoading === 'function') {
-                showLoading(false);
-            }
-
-            if (typeof showToast === 'function') {
-                showToast(`환영합니다, ${name}님! (개발 모드)`, 'success');
-            }
-
-            // 페이지 이동
-            setTimeout(() => {
-                if (role === 'teacher') {
-                    window.location.href = '/teacher';
-                } else {
-                    window.location.href = '/student';
-                }
-            }, 500);
-            return;
-        }
-
-        // API 모드: 실제 서버 호출
+        // 항상 API 모드 사용 (개발/프로덕션 모두 D1 데이터베이스 사용)
         const response = await fetch('/api/auth', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -98,6 +53,31 @@ async function login(name, role) {
 
         // Store user info in localStorage
         localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+        // 강사인 경우 프로필 생성 (카테고리 정보가 있고, 아직 프로필이 없는 경우)
+        if (role === 'teacher' && categoryId) {
+            try {
+                // 프로필이 이미 있는지 확인
+                const profileCheckResponse = await fetch(`/api/teachers/profile?userId=${user.id}`);
+                const profileCheck = await profileCheckResponse.json();
+
+                // 프로필이 없으면 생성
+                if (!profileCheck.success || !profileCheck.profile) {
+                    await fetch('/api/teachers/profile', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: user.id,
+                            lessonCategoryId: parseInt(categoryId)
+                        })
+                    });
+                    console.log('Teacher profile created with category:', categoryId);
+                }
+            } catch (profileError) {
+                console.error('Failed to create teacher profile:', profileError);
+                // 프로필 생성 실패해도 로그인은 계속 진행
+            }
+        }
 
         // Hide loading
         if (typeof showLoading === 'function') {

@@ -19,14 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const myBookingList = document.getElementById('my-booking-list');
     const teacherSelect = document.getElementById('teacher-select');
 
-    // localStorage 모드 체크
-    const isDevelopmentPort = ['3000', '8000', '8080', '5000', '5500'].includes(window.location.port);
-    const isLocalhost = window.location.hostname === 'localhost' ||
-                       window.location.hostname === '127.0.0.1' ||
-                       window.location.hostname.startsWith('192.168.') ||
-                       window.location.hostname.startsWith('10.') ||
-                       !window.location.hostname;
-    const USE_LOCAL_STORAGE_ONLY = isLocalhost || isDevelopmentPort;
+    // 항상 API 모드 사용 (개발/프로덕션 모두 D1 데이터베이스 사용)
 
     // 데이터 구조
     let bookings = []; // 전체 예약 목록
@@ -45,14 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     async function loadTeachers() {
         try {
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드에서는 기본 강사 추가
-                teacherSelect.innerHTML = '<option value="1">강사1</option>';
-                teacherId = 1;
-                return;
-            }
-
-            // API 모드
+            // 강사 목록 API 호출
             const response = await fetch('/api/auth?role=teacher');
             const data = await response.json();
 
@@ -75,11 +61,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 teacherSelect.appendChild(option);
             });
 
-            // 강사가 한 명이면 자동 선택하고 달력 렌더링
+            // 마지막 선택 강사 불러오기
+            const lastSelectedTeacherId = localStorage.getItem('lastSelectedTeacherId');
+
+            // 강사가 한 명이면 자동 선택
             if (teachers.length === 1) {
                 teacherId = teachers[0].id;
                 teacherSelect.value = teacherId;
-                renderCalendar(); // 자동 선택 시 달력 업데이트
+                renderCalendar();
+            }
+            // 마지막 선택 강사가 있으면 자동 선택
+            else if (lastSelectedTeacherId && teachers.find(t => t.id == lastSelectedTeacherId)) {
+                teacherId = parseInt(lastSelectedTeacherId);
+                teacherSelect.value = teacherId;
+                renderCalendar();
             }
         } catch (error) {
             console.error('Load teachers error:', error);
@@ -257,41 +252,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             if (typeof showLoading === 'function') showLoading(true);
 
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                console.warn('🔧 개발 모드: 예약 요청을 localStorage에 저장합니다.');
-
-                const existingBookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
-
-                const newBooking = {
-                    id: Date.now(),
-                    studentName: user.name,
-                    day: selectedDate,
-                    suggestedTimes: selectedTimes,
-                    time: null, // 강사가 승인할 때 설정
-                    status: 'pending',
-                    bookingDate: new Date().toISOString().split('T')[0]
-                };
-
-                existingBookings.push(newBooking);
-                localStorage.setItem(BOOKINGS_KEY, JSON.stringify(existingBookings));
-
-                if (typeof showLoading === 'function') showLoading(false);
-                if (typeof showToast === 'function') {
-                    showToast(`${selectedTimes.length}개 시간대로 예약 요청했습니다! (개발 모드)`, 'success');
-                } else {
-                    alert('예약 요청이 완료되었습니다!');
-                }
-
-                // 패널 닫기
-                timeslotPanel.classList.add('hidden');
-                selectedDate = null;
-
-                await loadBookings();
-                renderCalendar();
-                return;
-            }
-
             // API 모드
             const response = await fetch('/api/bookings', {
                 method: 'POST',
@@ -410,6 +370,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 출석하기
                             </a>
                         ` : ''}
+                        ${booking.status === 'completed' ? `
+                            <button class="write-review-btn btn btn-primary btn-sm"
+                                    data-booking-id="${booking.id}"
+                                    data-teacher-id="${booking.teacher_id}">
+                                리뷰 작성
+                            </button>
+                            <a href="/teacher-profile-view?teacherId=${booking.teacher_id}"
+                               class="btn btn-secondary btn-sm text-center text-xs">
+                                강사 보기
+                            </a>
+                        ` : ''}
                         ${booking.status === 'pending' || booking.status === 'approved' ? `
                             <button class="cancel-booking-btn btn btn-danger btn-sm" data-booking-id="${booking.id}">
                                 취소
@@ -425,6 +396,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.querySelectorAll('.cancel-booking-btn').forEach(btn => {
             btn.addEventListener('click', handleCancelBooking);
         });
+
+        // Add review button event listeners
+        document.querySelectorAll('.write-review-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const bookingId = e.target.dataset.bookingId;
+                const teacherId = e.target.dataset.teacherId;
+                if (typeof window.openReviewModal === 'function') {
+                    window.openReviewModal(bookingId, teacherId);
+                }
+            });
+        });
     }
 
     /**
@@ -439,27 +421,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             if (typeof showLoading === 'function') showLoading(true);
-
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                console.warn('🔧 개발 모드: localStorage에서 예약을 삭제합니다.');
-
-                const existingBookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
-                const updatedBookings = existingBookings.filter(b => b.id !== bookingId);
-
-                localStorage.setItem(BOOKINGS_KEY, JSON.stringify(updatedBookings));
-
-                if (typeof showLoading === 'function') showLoading(false);
-                if (typeof showToast === 'function') {
-                    showToast('예약이 취소되었습니다. (개발 모드)', 'info');
-                } else {
-                    alert('예약이 취소되었습니다.');
-                }
-
-                await loadBookings();
-                renderCalendar();
-                return;
-            }
 
             // API 모드
             const response = await fetch(`/api/bookings?id=${bookingId}`, {
@@ -493,21 +454,95 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
+     * 대시보드 로드
+     */
+    async function loadDashboard() {
+        try {
+            if (!user) return;
+
+            // 완료된 수업 중 가장 최근 강사
+            const completedBookings = myBookings
+                .filter(b => b.status === 'completed')
+                .sort((a, b) => {
+                    const dateA = new Date(a.booking_date || a.day);
+                    const dateB = new Date(b.booking_date || b.day);
+                    return dateB - dateA;
+                });
+
+            let lastTeacherId = null;
+            let lastTeacherName = '-';
+
+            if (completedBookings.length > 0) {
+                const lastBooking = completedBookings[0];
+                lastTeacherId = lastBooking.teacher_id;
+                lastTeacherName = lastBooking.teacher_name || '강사';
+                document.getElementById('last-teacher').textContent = lastTeacherName;
+
+                const profileBtn = document.getElementById('view-last-teacher-profile');
+                profileBtn.classList.remove('hidden');
+                profileBtn.onclick = () => {
+                    window.location.href = `/teacher-profile-view?teacherId=${lastTeacherId}`;
+                };
+            } else {
+                document.getElementById('last-teacher').textContent = '-';
+                document.getElementById('view-last-teacher-profile').classList.add('hidden');
+            }
+
+            // 다음 예정 수업 (승인된 수업 중 가장 가까운 미래)
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const upcomingBookings = myBookings
+                .filter(b => b.status === 'approved')
+                .map(b => {
+                    const bookingDate = new Date(b.booking_date || b.day);
+                    return { ...b, dateObj: bookingDate };
+                })
+                .filter(b => b.dateObj >= today)
+                .sort((a, b) => a.dateObj - b.dateObj);
+
+            if (upcomingBookings.length > 0) {
+                const nextClass = upcomingBookings[0];
+                document.getElementById('next-class-date').textContent = nextClass.booking_date || nextClass.day;
+                document.getElementById('next-class-time').textContent = nextClass.time_slot || nextClass.time || '-';
+            } else {
+                document.getElementById('next-class-date').textContent = '-';
+                document.getElementById('next-class-time').textContent = '-';
+            }
+
+            // 출석 데이터 가져오기
+            const attendanceResponse = await fetch(`/api/attendance?studentId=${user.id}`);
+            const attendanceData = await attendanceResponse.json();
+
+            if (attendanceData.success && attendanceData.attendance && attendanceData.attendance.length > 0) {
+                // 최근 출석
+                const sortedAttendance = attendanceData.attendance
+                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+                const lastAttendance = sortedAttendance[0];
+                const attendanceDate = new Date(lastAttendance.created_at);
+                document.getElementById('last-attendance-date').textContent =
+                    attendanceDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+                document.getElementById('last-attendance-status').textContent = '✓ 출석 완료';
+            } else {
+                document.getElementById('last-attendance-date').textContent = '-';
+                document.getElementById('last-attendance-status').textContent = '-';
+            }
+
+            // 총 수강 횟수
+            const totalClasses = completedBookings.length;
+            document.getElementById('total-classes').textContent = totalClasses;
+
+        } catch (error) {
+            console.error('Dashboard load error:', error);
+        }
+    }
+
+    /**
      * 내 예약 로드
      */
     async function loadBookings() {
         try {
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                console.warn('🔧 개발 모드: localStorage에서 예약을 로드합니다.');
-                const allBookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
-                bookings = allBookings;
-                myBookings = allBookings.filter(b => b.studentName === user.name);
-
-                renderMyBookings();
-                return;
-            }
-
             // API 모드
             const response = await fetch('/api/bookings');
             const data = await response.json();
@@ -522,6 +557,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             );
 
             renderMyBookings();
+            await loadDashboard(); // 대시보드 로드
         } catch (error) {
             console.error('Load bookings error:', error);
             if (typeof showToast === 'function') {
@@ -560,6 +596,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 강사 선택 이벤트
     teacherSelect.addEventListener('change', (e) => {
         teacherId = e.target.value ? parseInt(e.target.value) : null;
+        if (teacherId) {
+            // 마지막 선택 강사 저장
+            localStorage.setItem('lastSelectedTeacherId', teacherId);
+        }
         renderCalendar(); // 강사 변경 시 달력 다시 렌더링
     });
 

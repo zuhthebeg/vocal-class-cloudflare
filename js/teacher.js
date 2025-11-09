@@ -7,6 +7,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('user-name').textContent = `환영합니다, ${user.name}님`;
     }
 
+    // 강사 프로필 확인 (프로필이 없으면 프로필 편집 페이지로 리다이렉트)
+    const isWranglerDev = window.location.port === '8788';
+    const isProduction = !['localhost', '127.0.0.1'].includes(window.location.hostname) && !window.location.hostname.startsWith('192.168.') && !window.location.hostname.startsWith('10.');
+
+    if (user && user.role === 'teacher' && (isWranglerDev || isProduction)) {
+        try {
+            const profileResponse = await fetch(`/api/teachers/profile?userId=${user.id}`);
+            const profileData = await profileResponse.json();
+
+            // 프로필이 없으면 프로필 편집 페이지로 리다이렉트
+            if (!profileData.success || !profileData.profile) {
+                if (typeof showToast === 'function') {
+                    showToast('프로필 설정이 필요합니다. 프로필 편집 페이지로 이동합니다.', 'info');
+                }
+                setTimeout(() => {
+                    window.location.href = '/profile-edit';
+                }, 2000);
+                return; // 프로필 설정 전까지 페이지 로드 중단
+            }
+        } catch (error) {
+            console.error('Failed to check profile:', error);
+            // 프로필 확인 실패 시에도 계속 진행 (오프라인 모드 등)
+        }
+    }
+
     const calendarContainer = document.getElementById('calendar-container');
     const currentMonthElement = document.getElementById('current-month');
     const prevMonthBtn = document.getElementById('prev-month-btn');
@@ -240,23 +265,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     let allBookings = []; // 모든 예약 데이터
     let bookingsByDate = {}; // 날짜별 예약 데이터 (key: "YYYY-MM-DD", value: array of bookings)
     let allStudents = []; // 모든 학생 데이터 (start_date, end_date 포함)
-    const TEACHER_SCHEDULE_KEY = 'teacherSchedule';
-    const BOOKINGS_KEY = 'bookings';
 
     // 달력 상태
     let currentYear = new Date().getFullYear();
     let currentMonth = new Date().getMonth(); // 0-11
     let selectedDate = null; // 선택된 날짜 (YYYY-MM-DD)
 
-    // localStorage 모드 체크
-    const isDevelopmentPort = ['3000', '8000', '8080', '5000', '5500', '8788'].includes(window.location.port);
-    const isLocalhost = window.location.hostname === 'localhost' ||
-                       window.location.hostname === '127.0.0.1' ||
-                       window.location.hostname.startsWith('192.168.') ||
-                       window.location.hostname.startsWith('10.') ||
-                       !window.location.hostname;
-    const USE_LOCAL_STORAGE_ONLY = false; // API 모드 강제 사용
-    console.log('🚀 [INIT] USE_LOCAL_STORAGE_ONLY =', USE_LOCAL_STORAGE_ONLY, 'port:', window.location.port);
 
     // 드래그 선택 상태
     let isDragging = false;
@@ -412,7 +426,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const user = getUser();
             if (!user || !user.id) {
-                console.warn('No user found, cannot load students');
                 allStudents = [];
                 return;
             }
@@ -551,92 +564,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     //     });
     // }
 
-    // 날짜별 스케줄 저장 (현재 미사용)
-    /* if (saveDateScheduleBtn) {
-    saveDateScheduleBtn.addEventListener('click', async () => {
-        if (!selectedDate) return;
-
-        // 선택된 시간들 수집
-        const selectedTimes = [];
-        document.querySelectorAll('#timeslot-container > div[data-time]').forEach(slot => {
-            if (slot.dataset.selected === 'true') {
-                selectedTimes.push(slot.dataset.time);
-            }
-        });
-
-        try {
-            if (typeof showLoading === 'function') showLoading(true);
-
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                console.warn('🔧 개발 모드: 스케줄을 localStorage에 저장합니다.');
-
-                if (selectedTimes.length > 0) {
-                    teacherSchedule[selectedDate] = selectedTimes;
-                } else {
-                    delete teacherSchedule[selectedDate];
-                }
-
-                localStorage.setItem(TEACHER_SCHEDULE_KEY, JSON.stringify(teacherSchedule));
-
-                if (typeof showLoading === 'function') showLoading(false);
-                if (typeof showToast === 'function') {
-                    showToast(`${selectedDate} 스케줄이 저장되었습니다. (개발 모드)`, 'success');
-                } else {
-                    alert(`${selectedDate} 스케줄이 저장되었습니다.`);
-                }
-
-                timeslotPanel.classList.add('hidden');
-                selectedDate = null;
-                renderCalendar();
-                return;
-            }
-
-            // API 모드
-            const response = await fetch('/api/schedule', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    teacherId: user.id,
-                    date: selectedDate,
-                    timeSlots: selectedTimes
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to save schedule');
-            }
-
-            // 로컬 상태 업데이트
-            if (selectedTimes.length > 0) {
-                teacherSchedule[selectedDate] = selectedTimes;
-            } else {
-                delete teacherSchedule[selectedDate];
-            }
-
-            if (typeof showLoading === 'function') showLoading(false);
-            if (typeof showToast === 'function') {
-                showToast(`${selectedDate} 스케줄이 저장되었습니다.`, 'success');
-            } else {
-                alert(`${selectedDate} 스케줄이 저장되었습니다.`);
-            }
-
-            // timeslotPanel.classList.add('hidden');
-            selectedDate = null;
-            renderCalendar();
-        } catch (error) {
-            console.error('Schedule save error:', error);
-            if (typeof showLoading === 'function') showLoading(false);
-            if (typeof handleApiError === 'function') {
-                handleApiError(error);
-            } else {
-                alert('스케줄 저장 중 오류가 발생했습니다: ' + error.message);
-            }
-        }
-    });
-    } */ // end of saveDateScheduleBtn.addEventListener
 
     /**
      * 주간 스케줄 렌더링 (구버전 - 사용하지 않음)
@@ -782,91 +709,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         mouseDownCheckbox = null;
     }); */
 
-    /**
-     * 스케줄 저장 (달력 기반으로 전환 예정)
-     */
-    // TODO: 달력 기반 저장 로직으로 대체
-    /* saveScheduleBtn.addEventListener('click', async () => {
-        try {
-            if (typeof showLoading === 'function') showLoading(true);
-
-            // 스케줄 데이터 수집
-            const newSchedule = {};
-            document.querySelectorAll('#schedule-container input[type="checkbox"]:checked').forEach(checkbox => {
-                const day = checkbox.dataset.day;
-                const time = checkbox.dataset.time;
-                if (!newSchedule[day]) {
-                    newSchedule[day] = [];
-                }
-                newSchedule[day].push(time);
-            });
-
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                console.warn('🔧 개발 모드: 스케줄을 localStorage에 저장합니다.');
-                localStorage.setItem(TEACHER_SCHEDULE_KEY, JSON.stringify(newSchedule));
-                teacherSchedule = newSchedule;
-
-                if (typeof showLoading === 'function') showLoading(false);
-                if (typeof showToast === 'function') {
-                    showToast('스케줄이 저장되었습니다. (개발 모드)', 'success');
-                } else {
-                    alert('스케줄이 저장되었습니다.');
-                }
-
-                await renderBookings();
-                return;
-            }
-
-            // API 모드
-            const schedules = [];
-            document.querySelectorAll('#schedule-container input[type="checkbox"]').forEach(checkbox => {
-                const day = checkbox.dataset.day;
-                const time = checkbox.dataset.time;
-                const isAvailable = checkbox.checked;
-
-                schedules.push({
-                    dayOfWeek: dayMap[day],
-                    timeSlot: time,
-                    isAvailable: isAvailable
-                });
-            });
-
-            const response = await fetch('/api/schedule', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    teacherId: user.id,
-                    schedules: schedules
-                }),
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to save schedule');
-            }
-
-            teacherSchedule = newSchedule;
-
-            if (typeof showLoading === 'function') showLoading(false);
-            if (typeof showToast === 'function') {
-                showToast('스케줄이 저장되었습니다.', 'success');
-            } else {
-                alert('스케줄이 저장되었습니다.');
-            }
-
-            await renderBookings();
-        } catch (error) {
-            console.error('Schedule save error:', error);
-            if (typeof showLoading === 'function') showLoading(false);
-            if (typeof handleApiError === 'function') {
-                handleApiError(error, '스케줄 저장');
-            } else {
-                alert('스케줄 저장 중 오류가 발생했습니다: ' + error.message);
-            }
-        }
-    }); */
 
     /**
      * 예약 현황 렌더링
@@ -876,110 +718,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             // bookedSlots 초기화
             bookedSlots.clear();
             bookedSlotsInfo = {};
-
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                const bookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
-                bookingList.innerHTML = '';
-
-                // 예약된 시간 슬롯 수집
-                bookings.forEach(booking => {
-                    if (booking.status !== 'cancelled') {
-                        const slotKey = `${booking.day}-${booking.time}`;
-                        bookedSlots.add(slotKey);
-                        bookedSlotsInfo[slotKey] = {
-                            studentName: booking.studentName,
-                            bookingDate: booking.bookingDate
-                        };
-                    }
-                });
-
-                if (bookings.length === 0) {
-                    bookingList.innerHTML = '<p class="text-gray-500">예약된 수업이 없습니다.</p>';
-                    renderCalendar(); // 달력 다시 렌더링
-                    return;
-                }
-
-                // 상태별로 정렬: pending -> approved -> rejected -> cancelled
-                const sortOrder = { 'pending': 0, 'approved': 1, 'completed': 2, 'rejected': 3, 'cancelled': 4 };
-                bookings.sort((a, b) => (sortOrder[a.status] || 99) - (sortOrder[b.status] || 99));
-
-                bookings.forEach(booking => {
-                    const bookingItem = document.createElement('div');
-
-                    // 상태별 스타일링
-                    let statusClass, statusText, statusIcon;
-                    switch(booking.status) {
-                        case 'pending':
-                            statusClass = 'bg-yellow-50 border-yellow-200 border-2';
-                            statusText = '승인 대기중';
-                            statusIcon = '⏳';
-                            break;
-                        case 'approved':
-                            statusClass = 'bg-green-50 border-green-200';
-                            statusText = '승인됨';
-                            statusIcon = '✅';
-                            break;
-                        case 'rejected':
-                            statusClass = 'bg-red-50 border-red-200';
-                            statusText = '거절됨';
-                            statusIcon = '❌';
-                            break;
-                        case 'completed':
-                            statusClass = 'bg-blue-50 border-blue-200';
-                            statusText = '완료';
-                            statusIcon = '✓';
-                            break;
-                        case 'cancelled':
-                            statusClass = 'bg-gray-50 border-gray-200';
-                            statusText = '취소됨';
-                            statusIcon = '⊘';
-                            break;
-                        default:
-                            statusClass = 'bg-blue-50 border-blue-200';
-                            statusText = '확정';
-                            statusIcon = '✓';
-                    }
-
-                    bookingItem.className = `p-4 border rounded-md shadow-sm ${statusClass}`;
-                    bookingItem.innerHTML = `
-                        <div class="flex justify-between items-start">
-                            <div class="flex-1">
-                                <p class="font-semibold text-lg">${booking.studentName}님</p>
-                                <p class="text-gray-700">${booking.day} ${booking.time}</p>
-                                <p class="text-sm text-gray-600">요청일: ${booking.bookingDate || ''}</p>
-                                <p class="text-sm font-semibold mt-1 ${
-                                    booking.status === 'approved' ? 'text-green-600' :
-                                    booking.status === 'pending' ? 'text-yellow-600' :
-                                    booking.status === 'rejected' ? 'text-red-600' : 'text-gray-600'
-                                }">${statusIcon} ${statusText}</p>
-                            </div>
-                            ${booking.status === 'pending' ? `
-                                <div class="flex gap-2">
-                                    <button class="approve-booking-btn btn btn-success btn-sm" data-booking-id="${booking.id}">
-                                        승인
-                                    </button>
-                                    <button class="reject-booking-btn btn btn-danger btn-sm" data-booking-id="${booking.id}">
-                                        거절
-                                    </button>
-                                </div>
-                            ` : ''}
-                        </div>
-                    `;
-                    bookingList.appendChild(bookingItem);
-                });
-
-                // 승인/거절 버튼 이벤트 리스너 추가
-                document.querySelectorAll('.approve-booking-btn').forEach(btn => {
-                    btn.addEventListener('click', handleApproveBooking);
-                });
-                document.querySelectorAll('.reject-booking-btn').forEach(btn => {
-                    btn.addEventListener('click', handleRejectBooking);
-                });
-
-                renderCalendar(); // 달력 다시 렌더링 (예약된 시간 표시 반영)
-                return;
-            }
 
             // API 모드
             const response = await fetch(`/api/bookings?teacherId=${user.id}`);
@@ -1188,30 +926,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             if (typeof showLoading === 'function') showLoading(true);
 
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                console.warn('🔧 개발 모드: localStorage에서 예약을 승인합니다.');
-
-                const existingBookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
-                const booking = existingBookings.find(b => b.id === bookingId);
-
-                if (booking) {
-                    booking.status = 'approved';
-                    booking.time = selectedTime;
-                    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(existingBookings));
-                }
-
-                if (typeof showLoading === 'function') showLoading(false);
-                if (typeof showToast === 'function') {
-                    showToast('예약이 승인되었습니다! (개발 모드)', 'success');
-                } else {
-                    alert('예약이 승인되었습니다!');
-                }
-
-                await renderBookings();
-                return;
-            }
-
             // API 모드 - selectedTime을 쿼리 파라미터로 전달
             const response = await fetch(`/api/bookings?id=${bookingId}&action=approve&selectedTime=${encodeURIComponent(selectedTime)}`, {
                 method: 'PATCH',
@@ -1254,29 +968,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         try {
             if (typeof showLoading === 'function') showLoading(true);
-
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                console.warn('🔧 개발 모드: localStorage에서 예약을 거절합니다.');
-
-                const existingBookings = JSON.parse(localStorage.getItem(BOOKINGS_KEY) || '[]');
-                const booking = existingBookings.find(b => b.id === bookingId);
-
-                if (booking) {
-                    booking.status = 'rejected';
-                    localStorage.setItem(BOOKINGS_KEY, JSON.stringify(existingBookings));
-                }
-
-                if (typeof showLoading === 'function') showLoading(false);
-                if (typeof showToast === 'function') {
-                    showToast('예약이 거절되었습니다. (개발 모드)', 'info');
-                } else {
-                    alert('예약이 거절되었습니다.');
-                }
-
-                await renderBookings();
-                return;
-            }
 
             // API 모드
             const response = await fetch(`/api/bookings?id=${bookingId}&action=reject`, {
@@ -1408,19 +1099,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             let attendance = [];
 
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                const ATTENDANCE_KEY = 'attendance';
-                attendance = JSON.parse(localStorage.getItem(ATTENDANCE_KEY) || '[]');
-            } else {
-                // API 모드
-                const response = await fetch('/api/attendance');
-                if (!response.ok) {
-                    throw new Error('Failed to fetch attendance records');
-                }
-                const data = await response.json();
-                attendance = data.attendances || [];
+            // API 모드
+            const response = await fetch('/api/attendance');
+            if (!response.ok) {
+                throw new Error('Failed to fetch attendance records');
             }
+            const data = await response.json();
+            attendance = data.attendances || [];
 
             attendanceList.innerHTML = '';
 
@@ -1436,9 +1121,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 날짜 및 강사 예약으로 필터링
             const targetDate = filterDate || new Date().toISOString().split('T')[0];
-            let todayAttendance = USE_LOCAL_STORAGE_ONLY
-                ? attendance.filter(a => a.date === targetDate)
-                : attendance.filter(a => a.attended_at && a.attended_at.startsWith(targetDate));
+            let todayAttendance = attendance.filter(a => a.attended_at && a.attended_at.startsWith(targetDate));
 
             // 강사의 예약에 해당하는 출석만 필터링
             todayAttendance = todayAttendance.filter(a =>
@@ -1452,8 +1135,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 최신 순으로 정렬
             todayAttendance.sort((a, b) => {
-                const timeA = USE_LOCAL_STORAGE_ONLY ? new Date(a.timestamp) : new Date(a.attended_at);
-                const timeB = USE_LOCAL_STORAGE_ONLY ? new Date(b.timestamp) : new Date(b.attended_at);
+                const timeA = new Date(a.attended_at);
+                const timeB = new Date(b.attended_at);
                 return timeB - timeA;
             });
 
@@ -1461,13 +1144,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const attendanceItem = document.createElement('div');
                 attendanceItem.className = 'p-3 border rounded-md bg-green-50 text-sm space-y-2';
 
-                const timestamp = USE_LOCAL_STORAGE_ONLY ? record.timestamp : record.attended_at;
+                const timestamp = record.attended_at;
                 const time = new Date(timestamp).toLocaleTimeString('ko-KR', {
                     hour: '2-digit',
                     minute: '2-digit'
                 });
 
-                const studentName = USE_LOCAL_STORAGE_ONLY ? record.studentName : (record.student_name || `학생 ID: ${record.student_id}`);
+                const studentName = record.student_name || `학생 ID: ${record.student_id}`;
                 const sessionId = record.session_id || record.sessionId;
                 const signatureUrl = record.signature_url || record.signature;
 
@@ -1505,19 +1188,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             let attendance = [];
 
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                const ATTENDANCE_KEY = 'attendance';
-                attendance = JSON.parse(localStorage.getItem(ATTENDANCE_KEY) || '[]');
-            } else {
-                // API 모드
-                const response = await fetch('/api/attendance');
-                if (!response.ok) {
-                    throw new Error('Failed to fetch attendance records');
-                }
-                const data = await response.json();
-                attendance = data.attendances || [];
+            // API 모드
+            const response = await fetch('/api/attendance');
+            if (!response.ok) {
+                throw new Error('Failed to fetch attendance records');
             }
+            const data = await response.json();
+            attendance = data.attendances || [];
 
             // bookingId로 필터링 및 강사 검증
             const booking = allBookings.find(b => String(b.id) === String(bookingId));
@@ -1541,8 +1218,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 최신 순으로 정렬
             bookingAttendance.sort((a, b) => {
-                const timeA = USE_LOCAL_STORAGE_ONLY ? new Date(a.timestamp) : new Date(a.attended_at);
-                const timeB = USE_LOCAL_STORAGE_ONLY ? new Date(b.timestamp) : new Date(b.attended_at);
+                const timeA = new Date(a.attended_at);
+                const timeB = new Date(b.attended_at);
                 return timeB - timeA;
             });
 
@@ -1550,13 +1227,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const attendanceItem = document.createElement('div');
                 attendanceItem.className = 'p-3 border rounded-md bg-green-50 text-sm space-y-2';
 
-                const timestamp = USE_LOCAL_STORAGE_ONLY ? record.timestamp : record.attended_at;
+                const timestamp = record.attended_at;
                 const time = new Date(timestamp).toLocaleTimeString('ko-KR', {
                     hour: '2-digit',
                     minute: '2-digit'
                 });
 
-                const studentName = USE_LOCAL_STORAGE_ONLY ? record.studentName : (record.student_name || `학생 ID: ${record.student_id}`);
+                const studentName = record.student_name || `학생 ID: ${record.student_id}`;
                 const signatureUrl = record.signature_url || record.signature;
 
                 let html = `
@@ -1601,7 +1278,6 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     function requestNotificationPermission() {
         if (!('Notification' in window)) {
-            console.warn('이 브라우저는 알림을 지원하지 않습니다.');
             return;
         }
 
@@ -1610,7 +1286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('알림 권한이 허용되었습니다.');
                 scheduleNotifications();
             } else {
-                console.warn('알림 권한이 거부되었습니다.');
+                console.log('알림 권한이 거부되었습니다.');
             }
         });
     }
@@ -1644,19 +1320,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     /**
-     * 스케줄 로드 (API 또는 localStorage)
+     * 스케줄 로드 (API)
      */
     async function loadSchedule() {
         try {
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                console.warn('🔧 개발 모드: localStorage에서 스케줄을 로드합니다.');
-                const saved = localStorage.getItem(TEACHER_SCHEDULE_KEY);
-                teacherSchedule = saved ? JSON.parse(saved) : {};
-                renderCalendar();
-                return;
-            }
-
             // API 모드 - 날짜 범위로 조회 (현재 달부터 3개월)
             const today = new Date();
             const startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];

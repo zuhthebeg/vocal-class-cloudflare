@@ -4,6 +4,153 @@ const DRAWINGS_KEY = 'savedDrawings';
 const CLIPARTS_KEY = 'savedCliparts';
 
 document.addEventListener('DOMContentLoaded', () => {
+    // ============================================
+    // Storage Manager - Hybrid localStorage/Database
+    // ============================================
+    let currentStudentId = null; // ID of selected student (null = use localStorage)
+    let pendingSaveTimeout = null; // Debounce timer for auto-save
+
+    // Check if student is selected from sessionStorage
+    const savedStudentId = sessionStorage.getItem('selectedStudentId');
+    if (savedStudentId) {
+        currentStudentId = parseInt(savedStudentId);
+    }
+
+    // Storage abstraction layer
+    const StorageManager = {
+        // Get all data (drawings, cliparts, and videos)
+        async getData() {
+            if (currentStudentId) {
+                // Database mode
+                try {
+                    const response = await fetch(`/api/drawings?studentId=${currentStudentId}`);
+                    const data = await response.json();
+                    if (data.drawingData) {
+                        return {
+                            drawings: data.drawingData.savedDrawings || [],
+                            cliparts: data.drawingData.cliparts || [],
+                            videos: data.drawingData.exampleVideos || []
+                        };
+                    }
+                } catch (error) {
+                    console.error('Failed to load from database, falling back to localStorage:', error);
+                }
+            }
+
+            // localStorage mode (fallback or no student selected)
+            return {
+                drawings: JSON.parse(localStorage.getItem(DRAWINGS_KEY) || '[]'),
+                cliparts: JSON.parse(localStorage.getItem(CLIPARTS_KEY) || '[]'),
+                videos: JSON.parse(localStorage.getItem('exampleVideos') || '[]')
+            };
+        },
+
+        // Save all data (drawings, cliparts, and videos)
+        async saveData(drawings, cliparts, videos) {
+            // Always save to localStorage as backup
+            localStorage.setItem(DRAWINGS_KEY, JSON.stringify(drawings));
+            localStorage.setItem(CLIPARTS_KEY, JSON.stringify(cliparts));
+            localStorage.setItem('exampleVideos', JSON.stringify(videos));
+
+            // If student is selected, also save to database
+            if (currentStudentId) {
+                // Debounce saves to avoid too many API calls
+                if (pendingSaveTimeout) {
+                    clearTimeout(pendingSaveTimeout);
+                }
+
+                pendingSaveTimeout = setTimeout(async () => {
+                    try {
+                        await fetch('/api/drawings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                studentId: currentStudentId,
+                                drawingData: {
+                                    savedDrawings: drawings,
+                                    cliparts: cliparts,
+                                    exampleVideos: videos
+                                }
+                            })
+                        });
+                        console.log('✅ Saved to database for student:', currentStudentId);
+                    } catch (error) {
+                        console.error('Failed to save to database:', error);
+                    }
+                }, 1000); // Wait 1 second after last change
+            }
+        },
+
+        // Get only drawings
+        async getDrawings() {
+            const data = await this.getData();
+            return data.drawings;
+        },
+
+        // Get only cliparts
+        async getCliparts() {
+            const data = await this.getData();
+            return data.cliparts;
+        },
+
+        // Get only videos
+        async getVideos() {
+            const data = await this.getData();
+            return data.videos;
+        },
+
+        // Save only drawings (loads other data from storage first)
+        async saveDrawings(drawings) {
+            const data = await this.getData();
+            await this.saveData(drawings, data.cliparts, data.videos);
+        },
+
+        // Save only cliparts (loads other data from storage first)
+        async saveCliparts(cliparts) {
+            const data = await this.getData();
+            await this.saveData(data.drawings, cliparts, data.videos);
+        },
+
+        // Save only videos (loads other data from storage first)
+        async saveVideos(videos) {
+            const data = await this.getData();
+            await this.saveData(data.drawings, data.cliparts, videos);
+        }
+    };
+
+    // Expose StorageManager globally for use in examples.js
+    window.StorageManager = StorageManager;
+
+    // Listen for student selection changes
+    window.addEventListener('studentSelected', async (e) => {
+        currentStudentId = e.detail.studentId;
+        console.log('📚 Student selected:', currentStudentId);
+
+        // Reload drawings and cliparts from database
+        await loadSavedDrawings();
+        await loadSavedCliparts();
+
+        if (typeof showToast === 'function') {
+            showToast(`수강생이 선택되었습니다. 데이터베이스 모드로 전환됩니다.`, 'success');
+        }
+    });
+
+    window.addEventListener('studentDeselected', async () => {
+        currentStudentId = null;
+        console.log('📁 Switched to localStorage mode');
+
+        // Reload from localStorage
+        await loadSavedDrawings();
+        await loadSavedCliparts();
+
+        if (typeof showToast === 'function') {
+            showToast('로컬 저장 모드로 전환되었습니다.', 'info');
+        }
+    });
+
+    // ============================================
+    // Canvas Setup
+    // ============================================
     const canvas = document.getElementById('drawing-board');
     const ctx = canvas.getContext('2d');
     const colorPicker = document.getElementById('color-picker');
@@ -13,6 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const maximizeBtn = document.getElementById('maximize-btn');
     const zoomInBtn = document.getElementById('zoom-in-btn');
     const zoomOutBtn = document.getElementById('zoom-out-btn');
+    const zoomResetBtn = document.getElementById('zoom-reset-btn');
     const zoomLevelDisplay = document.getElementById('zoom-level');
     const drawingContainer = document.getElementById('drawing-container');
     const savedDrawingsContainer = document.getElementById('saved-drawings');
@@ -177,11 +325,15 @@ document.addEventListener('DOMContentLoaded', () => {
     zoomInBtn.addEventListener('click', () => {
         updateZoom(currentZoom * 1.2); // 20% 확대
     });
-    
+
     zoomOutBtn.addEventListener('click', () => {
         updateZoom(currentZoom / 1.2); // 20% 축소
     });
-    
+
+    zoomResetBtn.addEventListener('click', () => {
+        updateZoom(1.0); // 100%로 리셋
+    });
+
     // 마우스 휠로 확대/축소
     canvas.parentElement.parentElement.addEventListener('wheel', (e) => {
         if (e.ctrlKey || e.metaKey) {
@@ -351,19 +503,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const addClipartBtn = document.getElementById('add-clipart-btn-compact') || document.getElementById('add-clipart-btn');
 
     // 클립아트 저장 함수
-    function saveClipart(url) {
-        const cliparts = JSON.parse(localStorage.getItem(CLIPARTS_KEY) || '[]');
+    async function saveClipart(url) {
+        const cliparts = await StorageManager.getCliparts();
         if (!cliparts.includes(url)) {
             cliparts.push(url);
-            localStorage.setItem(CLIPARTS_KEY, JSON.stringify(cliparts));
+            await StorageManager.saveCliparts(cliparts);
         }
     }
 
     // 저장된 클립아트 로드 함수
-    function loadSavedCliparts() {
-        const cliparts = JSON.parse(localStorage.getItem(CLIPARTS_KEY) || '[]');
+    async function loadSavedCliparts() {
+        const cliparts = await StorageManager.getCliparts();
         clipartContainer.innerHTML = ''; // 기존 클립아트 초기화
-        
+
         cliparts.forEach(url => {
             const item = document.createElement('div');
             item.className = 'relative flex-shrink-0';
@@ -390,10 +542,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 클립아트 삭제
-    function deleteClipart(url, el) {
-        const cliparts = JSON.parse(localStorage.getItem(CLIPARTS_KEY) || '[]');
+    async function deleteClipart(url, el) {
+        const cliparts = await StorageManager.getCliparts();
         const updated = cliparts.filter(u => u !== url);
-        localStorage.setItem(CLIPARTS_KEY, JSON.stringify(updated));
+        await StorageManager.saveCliparts(updated);
         if (el && el.parentNode) el.parentNode.removeChild(el);
     }
 
@@ -520,7 +672,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // 그림 저장
-    saveDrawingBtn.addEventListener('click', () => {
+    saveDrawingBtn.addEventListener('click', async () => {
         const drawingName = prompt('저장할 그림의 이름을 입력하세요:');
         if (!drawingName) return;
 
@@ -531,16 +683,16 @@ document.addEventListener('DOMContentLoaded', () => {
             date: new Date().toISOString()
         };
 
-        const drawings = JSON.parse(localStorage.getItem(DRAWINGS_KEY) || '[]');
+        const drawings = await StorageManager.getDrawings();
         drawings.push(drawing);
-        localStorage.setItem(DRAWINGS_KEY, JSON.stringify(drawings));
+        await StorageManager.saveDrawings(drawings);
 
-        loadSavedDrawings();
+        await loadSavedDrawings();
     });
 
     // 저장된 그림 불러오기
-    function loadSavedDrawings() {
-        const drawings = JSON.parse(localStorage.getItem(DRAWINGS_KEY) || '[]');
+    async function loadSavedDrawings() {
+        const drawings = await StorageManager.getDrawings();
         savedDrawingsContainer.innerHTML = '';
 
         drawings.forEach(drawing => {
@@ -561,14 +713,14 @@ document.addEventListener('DOMContentLoaded', () => {
             delBtn.className = 'absolute -top-1 -right-1 bg-white text-red-600 rounded-full w-6 h-6 flex items-center justify-center text-sm shadow hover:bg-red-50 z-10';
             delBtn.title = '삭제';
             delBtn.innerHTML = '&times;';
-            delBtn.addEventListener('click', (ev) => {
+            delBtn.addEventListener('click', async (ev) => {
                 ev.stopPropagation();
                 if (!confirm('이 그림을 삭제하시겠습니까?')) return;
 
-                const drawings = JSON.parse(localStorage.getItem(DRAWINGS_KEY) || '[]');
+                const drawings = await StorageManager.getDrawings();
                 const updatedDrawings = drawings.filter(d => d.id !== drawing.id);
-                localStorage.setItem(DRAWINGS_KEY, JSON.stringify(updatedDrawings));
-                loadSavedDrawings();
+                await StorageManager.saveDrawings(updatedDrawings);
+                await loadSavedDrawings();
             });
 
             // 전체 교체 버튼 (클릭 시)
@@ -666,12 +818,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 100);
     });
 
-    // 초기 로드
-    loadSavedDrawings();
-    loadSavedCliparts(); // 저장된 클립아트 로드
+    // 초기 로드 (async IIFE for top-level await)
+    (async () => {
+        await loadSavedDrawings();
+        await loadSavedCliparts(); // 저장된 클립아트 로드
 
-    // 초기 빈 캔버스 상태를 히스토리에 저장
-    setTimeout(() => {
-        saveToHistory();
-    }, 100);
+        // 초기 빈 캔버스 상태를 히스토리에 저장
+        setTimeout(() => {
+            saveToHistory();
+        }, 100);
+    })();
 });

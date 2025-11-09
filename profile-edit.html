@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="강사 프로필 편집 - Vocal Class">
+    <title>프로필 편집 - Vocal Class</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body class="bg-gray-50">
+    <nav class="bg-indigo-600 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">프로필 편집</h1>
+            <div>
+                <span id="user-name" class="mr-4"></span>
+                <a href="/teacher" class="hover:underline mr-4">강사 페이지</a>
+                <button id="logout-btn" class="btn btn-danger btn-sm">로그아웃</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-4 md:p-8 max-w-3xl">
+        <div class="bg-white rounded-lg shadow p-6 md:p-8">
+            <h2 class="text-2xl font-bold mb-6 text-indigo-600">강사 프로필 정보</h2>
+
+            <form id="profile-form" class="space-y-6">
+                <!-- 카테고리 선택 -->
+                <div>
+                    <label for="category" class="block text-sm font-medium text-gray-700 mb-2">
+                        수업 카테고리 <span class="text-red-500">*</span>
+                    </label>
+                    <select id="category" name="category" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">카테고리를 선택하세요</option>
+                        <!-- 동적으로 로드됨 -->
+                    </select>
+                </div>
+
+                <!-- 자기소개 -->
+                <div>
+                    <label for="bio" class="block text-sm font-medium text-gray-700 mb-2">
+                        자기소개
+                    </label>
+                    <textarea id="bio" name="bio" rows="4"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="강사 소개를 입력하세요..."></textarea>
+                    <p class="mt-1 text-sm text-gray-500">수강생들에게 보여질 소개글입니다.</p>
+                </div>
+
+                <!-- 자격증/경력 -->
+                <div>
+                    <label for="certification" class="block text-sm font-medium text-gray-700 mb-2">
+                        자격증 및 경력
+                    </label>
+                    <textarea id="certification" name="certification" rows="4"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="예: 보컬 트레이닝 자격증, 10년 경력 등"></textarea>
+                    <p class="mt-1 text-sm text-gray-500">각 항목을 줄바꿈으로 구분하여 입력하세요.</p>
+                </div>
+
+                <!-- 시간당 수업료 -->
+                <div>
+                    <label for="hourly-rate" class="block text-sm font-medium text-gray-700 mb-2">
+                        시간당 수업료 (원)
+                    </label>
+                    <input type="number" id="hourly-rate" name="hourly-rate" min="0" step="1000"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                           placeholder="예: 50000">
+                    <p class="mt-1 text-sm text-gray-500">1시간 기준 수업료를 입력하세요.</p>
+                </div>
+
+                <!-- 저장 버튼 -->
+                <div class="flex gap-4">
+                    <button type="submit" class="btn btn-primary flex-1">
+                        저장하기
+                    </button>
+                    <a href="/teacher" class="btn btn-secondary flex-1 text-center">
+                        취소
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- 프로필 미리보기 -->
+        <div class="bg-white rounded-lg shadow p-6 md:p-8 mt-6">
+            <h3 class="text-xl font-bold mb-4 text-indigo-600">미리보기</h3>
+            <div id="profile-preview" class="space-y-4">
+                <div>
+                    <h4 class="font-semibold text-gray-700">카테고리</h4>
+                    <p id="preview-category" class="text-gray-600">-</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-gray-700">자기소개</h4>
+                    <p id="preview-bio" class="text-gray-600 whitespace-pre-wrap">-</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-gray-700">자격증 및 경력</h4>
+                    <p id="preview-certification" class="text-gray-600 whitespace-pre-wrap">-</p>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-gray-700">시간당 수업료</h4>
+                    <p id="preview-rate" class="text-gray-600">-</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/components.js?v=7"></script>
+    <script src="js/auth.js?v=7"></script>
+    <script>
+        let currentUser = null;
+        let categories = [];
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', async () => {
+            // 사용자 정보 확인
+            currentUser = getUser();
+            if (!currentUser) {
+                window.location.href = '/';
+                return;
+            }
+
+            // 강사만 접근 가능
+            if (currentUser.role !== 'teacher') {
+                if (typeof showToast === 'function') {
+                    showToast('강사만 접근할 수 있습니다.', 'error');
+                }
+                window.location.href = '/';
+                return;
+            }
+
+            // 사용자 이름 표시
+            document.getElementById('user-name').textContent = currentUser.name;
+
+            // 로그아웃 버튼
+            document.getElementById('logout-btn').addEventListener('click', logout);
+
+            // 카테고리 로드
+            await loadCategories();
+
+            // 현재 프로필 로드
+            await loadProfile();
+
+            // 폼 입력 시 미리보기 업데이트
+            setupPreview();
+
+            // 폼 제출 이벤트
+            document.getElementById('profile-form').addEventListener('submit', saveProfile);
+        });
+
+        // 카테고리 목록 로드
+        async function loadCategories() {
+            try {
+                const response = await fetch('/api/categories');
+                const data = await response.json();
+
+                if (data.success && data.categories) {
+                    categories = data.categories;
+                    const categorySelect = document.getElementById('category');
+
+                    // 카테고리 옵션 추가
+                    data.categories.forEach(category => {
+                        const option = document.createElement('option');
+                        option.value = category.id;
+                        option.textContent = `${category.icon} ${category.name}`;
+                        categorySelect.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+            }
+        }
+
+        // 현재 프로필 로드
+        async function loadProfile() {
+            try {
+                const response = await fetch(`/api/teachers/profile?userId=${currentUser.id}`);
+
+                // 404는 프로필이 없는 것이므로 에러가 아님
+                if (response.status === 404) {
+                    console.log('No profile found - creating new profile');
+                    return; // 프로필이 없으면 빈 폼으로 시작
+                }
+
+                const data = await response.json();
+
+                if (data.success && data.profile) {
+                    const profile = data.profile;
+
+                    // 폼 필드 채우기
+                    if (profile.lesson_category_id) {
+                        document.getElementById('category').value = profile.lesson_category_id;
+                    }
+                    if (profile.bio) {
+                        document.getElementById('bio').value = profile.bio;
+                    }
+                    if (profile.certification) {
+                        document.getElementById('certification').value = profile.certification;
+                    }
+                    if (profile.hourly_rate) {
+                        document.getElementById('hourly-rate').value = profile.hourly_rate;
+                    }
+
+                    // 미리보기 업데이트
+                    updatePreview();
+                }
+            } catch (error) {
+                console.error('Failed to load profile:', error);
+            }
+        }
+
+        // 미리보기 설정
+        function setupPreview() {
+            const inputs = ['category', 'bio', 'certification', 'hourly-rate'];
+            inputs.forEach(id => {
+                const element = document.getElementById(id);
+                element.addEventListener('input', updatePreview);
+                element.addEventListener('change', updatePreview);
+            });
+        }
+
+        // 미리보기 업데이트
+        function updatePreview() {
+            const categoryId = document.getElementById('category').value;
+            const bio = document.getElementById('bio').value;
+            const certification = document.getElementById('certification').value;
+            const hourlyRate = document.getElementById('hourly-rate').value;
+
+            // 카테고리
+            const category = categories.find(c => c.id == categoryId);
+            document.getElementById('preview-category').textContent =
+                category ? `${category.icon} ${category.name}` : '-';
+
+            // 자기소개
+            document.getElementById('preview-bio').textContent = bio || '-';
+
+            // 자격증/경력
+            document.getElementById('preview-certification').textContent = certification || '-';
+
+            // 시간당 수업료
+            document.getElementById('preview-rate').textContent =
+                hourlyRate ? `${parseInt(hourlyRate).toLocaleString()}원` : '-';
+        }
+
+        // 프로필 저장
+        async function saveProfile(e) {
+            e.preventDefault();
+
+            const categoryId = document.getElementById('category').value;
+            const bio = document.getElementById('bio').value.trim();
+            const certification = document.getElementById('certification').value.trim();
+            const hourlyRate = document.getElementById('hourly-rate').value;
+
+            if (!categoryId) {
+                if (typeof showToast === 'function') {
+                    showToast('수업 카테고리를 선택해주세요.', 'error');
+                } else {
+                    alert('수업 카테고리를 선택해주세요.');
+                }
+                return;
+            }
+
+            try {
+                if (typeof showLoading === 'function') {
+                    showLoading(true);
+                }
+
+                // 먼저 프로필이 존재하는지 확인
+                const checkResponse = await fetch(`/api/teachers/profile?userId=${currentUser.id}`);
+                const profileExists = checkResponse.status !== 404;
+
+                let response;
+                if (profileExists) {
+                    // 프로필이 있으면 PATCH (업데이트)
+                    response = await fetch(`/api/teachers/profile?userId=${currentUser.id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            lessonCategoryId: parseInt(categoryId),
+                            bio: bio || null,
+                            certification: certification || null,
+                            hourlyRate: hourlyRate ? parseInt(hourlyRate) : null
+                        })
+                    });
+                } else {
+                    // 프로필이 없으면 POST (생성)
+                    response = await fetch('/api/teachers/profile', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: currentUser.id,
+                            lessonCategoryId: parseInt(categoryId),
+                            bio: bio || null,
+                            certification: certification || null,
+                            hourlyRate: hourlyRate ? parseInt(hourlyRate) : null
+                        })
+                    });
+                }
+
+                const data = await response.json();
+
+                if (typeof showLoading === 'function') {
+                    showLoading(false);
+                }
+
+                if (data.success) {
+                    if (typeof showToast === 'function') {
+                        showToast('프로필이 저장되었습니다!', 'success');
+                    } else {
+                        alert('프로필이 저장되었습니다!');
+                    }
+
+                    // 2초 후 강사 페이지로 이동
+                    setTimeout(() => {
+                        window.location.href = '/teacher';
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || '프로필 저장에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('Failed to save profile:', error);
+                if (typeof showLoading === 'function') {
+                    showLoading(false);
+                }
+                if (typeof showToast === 'function') {
+                    showToast(error.message, 'error');
+                } else {
+                    alert(error.message);
+                }
+            }
+        }
+    </script>
+</body>
+</html>

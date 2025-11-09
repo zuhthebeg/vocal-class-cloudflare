@@ -4,36 +4,67 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a vocal class management web application being migrated from a localStorage-based PWA to a Cloudflare Pages + D1 + R2 serverless architecture. The app serves both teachers (scheduling, attendance tracking) and students (booking classes, submitting attendance).
+This is a multi-lesson education platform (vocal, PT, drawing, piano, etc.) built with Cloudflare Pages + D1 + R2 serverless architecture. The app serves both teachers (scheduling, attendance tracking, profile management) and students (browsing teachers, booking classes, submitting reviews).
 
-## Common Commands
+**Current Development Phase**: Core features implementation (Phase 1)
+- Database can be reset anytime during development - no migration concerns
+- Authentication is simplified (name-only) - proper auth will be added in final phase
 
-### Development
+## Development Environment
+
+**IMPORTANT: All environments (dev/prod) use D1 database - NO localStorage mode**
+
+- **Development**: `wrangler pages dev . --port=8788` → Uses local D1 (`.wrangler/state/v3/d1`)
+- **Production**: Cloudflare Pages deployment → Uses remote D1
+- **Data Storage**: ALL user data, schedules, bookings stored in D1 database
+- **Session Storage**: Only `localStorage` is used for user session (login state)
+- **Database Resets**: Safe to reset database anytime during development phase
+
+### Common Commands
+
+#### Development
 ```bash
 # Install dependencies
 npm install
 
-# Run local development server with D1 and R2 bindings (port 8788)
-wrangler pages dev . --d1=DB --r2=STORAGE --port=8788
+# Run local development server (ALWAYS use this - port 8788 required)
+wrangler pages dev . --port=8788
 
-# Alternative (if configured in package.json)
-npm run dev
+# With explicit D1 and R2 bindings
+wrangler pages dev . --d1=DB --r2=STORAGE --port=8788
 ```
 
-### Database Operations
+**⚠️ CRITICAL**: ALWAYS use port 8788 for development
+- Other ports will not have D1/R2 bindings available
+- Frontend code expects API endpoints at port 8788
+
+#### Database Operations
 ```bash
+# Reset local database (SAFE during development - no migration needed)
+rm -rf .wrangler/state/v3/d1  # Delete local database
+wrangler d1 execute vocal-class-db --local --file=./schema.sql  # Recreate
+
 # Initialize D1 database (local)
 wrangler d1 execute vocal-class-db --local --file=./schema.sql
 
-# Initialize D1 database (production)
-wrangler d1 execute vocal-class-db --file=./schema.sql
+# Seed initial data (categories)
+wrangler d1 execute vocal-class-db --local --command "INSERT INTO lesson_categories (name, icon, description) VALUES ('보컬', '🎤', '보컬 트레이닝'), ('PT', '💪', '퍼스널 트레이닝'), ('드로잉', '🎨', '그림 레슨'), ('피아노', '🎹', '피아노 레슨'), ('기타', '🎸', '기타 레슨'), ('요가', '🧘', '요가 레슨');"
 
 # Run manual SQL query (local)
 wrangler d1 execute vocal-class-db --local --command "SELECT * FROM users"
 
+# Initialize D1 database (production)
+wrangler d1 execute vocal-class-db --file=./schema.sql
+
 # Run manual SQL query (production)
 wrangler d1 execute vocal-class-db --command "SELECT * FROM users"
 ```
+
+**Development Database Guidelines:**
+- Local database is stored in `.wrangler/state/v3/d1/`
+- Safe to delete and recreate anytime during development
+- No need for migrations - just reset when schema changes
+- Always seed categories after reset
 
 ### Deployment
 ```bash

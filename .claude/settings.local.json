@@ -28,7 +28,9 @@
       "Bash(timeout 5 bash:*)",
       "mcp__playwright__browser_take_screenshot",
       "Bash(gemini:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(python -m json.tool:*)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []

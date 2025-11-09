@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <td class="py-3 px-4 truncate max-w-xs">${student.notes || '-'}</td>
                     <td class="py-3 px-4">
                         <button class="btn btn-secondary btn-sm edit-btn" data-id="${student.id}">수정</button>
+                        <button class="btn btn-primary btn-sm ml-2 chat-btn" data-id="${student.id}" data-name="${student.name}">💬 챗봇</button>
                     </td>
                 </tr>
             `;
@@ -70,6 +71,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.querySelectorAll('.edit-btn').forEach(btn => {
             btn.addEventListener('click', handleEditClick);
+        });
+
+        document.querySelectorAll('.chat-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const studentId = e.target.dataset.id;
+                const studentName = e.target.dataset.name;
+                window.location.href = `/chat?mode=teacher&studentId=${studentId}&studentName=${encodeURIComponent(studentName)}`;
+            });
         });
     }
 

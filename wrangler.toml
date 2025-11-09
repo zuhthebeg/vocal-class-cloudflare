@@ -17,3 +17,13 @@ database_id = "9f90ac1e-f6d8-4a9b-9e9d-2ae5548ac054"
 #[[kv_namespaces]]
 #binding = "SESSIONS"
 #id = "" # wrangler kv:namespace create 후 생성됨
+
+# 환경 변수 (개발용)
+[vars]
+GEMINI_API_KEY = "AIzaSyDnEBUVW9oaVCIQaDKRq2I80ZhLDpRg2pE"
+
+# 프로덕션 환경 변수
+# 프로덕션 배포 시 Cloudflare Dashboard에서 환경 변수를 설정하세요
+# [env.production]
+# [env.production.vars]
+# GEMINI_API_KEY = "production-key"

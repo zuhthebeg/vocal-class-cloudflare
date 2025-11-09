@@ -9,7 +9,6 @@
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/one-piece-theme.css">
 </head>
 <body>
 
@@ -23,6 +22,13 @@
                         <span id="theme-icon">🌙</span>
                     </div>
                 </button>
+                <!-- Student Selector (only visible for teachers) -->
+                <div id="student-selector-container" class="hidden">
+                    <select id="student-selector" class="dark-input px-3 py-1 text-sm" aria-label="수강생 선택">
+                        <option value="">수강생 선택 안함 (로컬 저장)</option>
+                        <!-- Students populated by JavaScript -->
+                    </select>
+                </div>
                 <span id="user-name" aria-live="polite"></span>
                 <button id="home-btn" class="hover:underline" aria-label="메인 페이지로 이동">메인으로</button>
                 <button id="logout-btn" class="btn btn-danger btn-sm" aria-label="로그아웃">로그아웃</button>
@@ -78,6 +84,12 @@
                             <span class="material-icons" aria-hidden="true">zoom_out</span>
                             <span>축소</span>
                         </button>
+                        <button id="zoom-reset-btn"
+                                class="dark-btn dark-btn-secondary dark-btn-sm"
+                                aria-label="원래 크기">
+                            <span class="material-icons" aria-hidden="true">filter_center_focus</span>
+                            <span>100%</span>
+                        </button>
                         <button id="zoom-in-btn"
                                 class="dark-btn dark-btn-secondary dark-btn-sm"
                                 aria-label="확대">
@@ -109,12 +121,12 @@
                     </div>
 
                     <!-- 하단: 클립아트 & 저장된 그림 (두 섹션) -->
-                    <div class="bg-white rounded-lg p-4 shadow-sm border">
+                    <div id="drawing-assets-section" class="dark-card rounded-lg p-4 shadow-sm">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <!-- 왼쪽: 클립아트 -->
-                            <div class="border-r md:pr-6">
+                            <div class="border-r border-gray-300 md:pr-6">
                                 <div class="flex items-center justify-between mb-3">
-                                    <h3 class="text-lg font-semibold">클립아트 모음</h3>
+                                    <h3 class="text-lg font-semibold text-gray-800">클립아트 모음</h3>
                                     <div class="flex items-center gap-2">
                                         <input id="clipart-url-compact" type="text" placeholder="이미지 URL" class="dark-input text-sm px-2 py-1 w-32" />
                                         <button id="add-clipart-btn-compact" class="dark-btn dark-btn-primary dark-btn-sm">
@@ -125,16 +137,16 @@
                                 <div id="clipart-container" class="flex flex-wrap gap-2 overflow-y-auto p-2" style="max-height: 200px;">
                                     <!-- 클립아트들이 여기에 동적으로 추가됨 -->
                                 </div>
-                                <p class="text-xs text-gray-500 mt-2">💡 클립아트를 드래그해서 캔버스에 놓으세요</p>
+                                <p class="text-xs text-gray-600 mt-2">💡 클립아트를 드래그해서 캔버스에 놓으세요</p>
                             </div>
 
                             <!-- 오른쪽: 저장된 그림 -->
                             <div>
-                                <h3 class="text-lg font-semibold mb-3">저장된 그림</h3>
+                                <h3 class="text-lg font-semibold text-gray-800 mb-3">저장된 그림</h3>
                                 <div id="saved-drawings" class="flex flex-wrap gap-2 overflow-y-auto p-2" style="max-height: 200px;">
                                     <!-- 저장된 그림들이 여기에 동적으로 추가됨 -->
                                 </div>
-                                <p class="text-xs text-gray-500 mt-2">💡 드래그해서 캔버스에 추가하거나 클릭해서 전체 교체</p>
+                                <p class="text-xs text-gray-600 mt-2">💡 드래그해서 캔버스에 추가하거나 클릭해서 전체 교체</p>
                             </div>
                         </div>
                     </div>
@@ -218,7 +230,7 @@
     <script src="js/recorder.js?v=9"></script>
     <script src="js/examples.js?v=9"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             // checkAuth(); // 시연용으로 임시 비활성화
             const user = getUser();
             if (user) {
@@ -226,11 +238,71 @@
                 const homeBtn = document.getElementById('home-btn');
                 homeBtn.addEventListener('click', () => {
                     if (user.role === 'teacher') {
-                        window.location.href = '/teacher.html';
+                        window.location.href = '/teacher';
                     } else {
-                        window.location.href = '/student.html';
+                        window.location.href = '/student';
                     }
                 });
+
+                // ============================================
+                // Student Selector (Teachers only)
+                // ============================================
+                if (user.role === 'teacher') {
+                    const studentSelectorContainer = document.getElementById('student-selector-container');
+                    const studentSelector = document.getElementById('student-selector');
+
+                    // Show student selector for teachers
+                    studentSelectorContainer.classList.remove('hidden');
+
+                    // Fetch and populate student list
+                    try {
+                        const response = await fetch('/api/auth?role=student');
+                        const data = await response.json();
+
+                        if (data.users && data.users.length > 0) {
+                            data.users.forEach(student => {
+                                const option = document.createElement('option');
+                                option.value = student.id;
+                                option.textContent = student.name;
+                                studentSelector.appendChild(option);
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Failed to load students:', error);
+                    }
+
+                    // Load previously selected student from sessionStorage
+                    const savedStudentId = sessionStorage.getItem('selectedStudentId');
+                    if (savedStudentId) {
+                        studentSelector.value = savedStudentId;
+                    }
+
+                    // Handle student selection change
+                    studentSelector.addEventListener('change', (e) => {
+                        const selectedStudentId = e.target.value;
+
+                        if (selectedStudentId) {
+                            // Save to sessionStorage
+                            sessionStorage.setItem('selectedStudentId', selectedStudentId);
+                            // Trigger event for drawing.js to reload data
+                            window.dispatchEvent(new CustomEvent('studentSelected', {
+                                detail: { studentId: parseInt(selectedStudentId) }
+                            }));
+                        } else {
+                            // Clear selection
+                            sessionStorage.removeItem('selectedStudentId');
+                            // Trigger event to use localStorage
+                            window.dispatchEvent(new CustomEvent('studentDeselected'));
+                        }
+                    });
+
+                    // Trigger initial load if student is already selected
+                    if (savedStudentId) {
+                        window.dispatchEvent(new CustomEvent('studentSelected', {
+                            detail: { studentId: parseInt(savedStudentId) }
+                        }));
+                    }
+                }
             }
 
             // ============================================
