@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "Vocal class booking and attendance system",
   "scripts": {
-    "dev": "wrangler pages dev public --port=8788",
-    "dev:debug": "wrangler pages dev public --port=8788 --log-level=debug",
-    "deploy": "wrangler pages deploy public",
+    "dev": "wrangler pages dev . --port=8788",
+    "dev:debug": "wrangler pages dev . --port=8788 --log-level=debug",
+    "deploy": "wrangler pages deploy .",
     "db:init": "wrangler d1 execute vocal-class-db --file=./schema.sql",
     "start": "node server.js"
   },
