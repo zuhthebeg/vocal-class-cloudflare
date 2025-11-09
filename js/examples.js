@@ -15,9 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalVideoCategory = document.getElementById('modal-video-category');
     const modalVideoContainer = document.getElementById('modal-video-container');
 
-    const EXAMPLES_KEY = 'examples';
+    const EXAMPLES_KEY = 'exampleVideos';
 
-    let examples = JSON.parse(localStorage.getItem(EXAMPLES_KEY)) || [];
+    let examples = [];
     let currentFilter = '전체';
 
     // ============================================
@@ -42,9 +42,54 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 초기 마이그레이션 실행
-    examples = migrateVideos(examples);
-    localStorage.setItem(EXAMPLES_KEY, JSON.stringify(examples));
+    // ============================================
+    // Load videos from StorageManager
+    // ============================================
+    async function loadVideos() {
+        if (window.StorageManager) {
+            examples = await window.StorageManager.getVideos();
+        } else {
+            // Fallback to localStorage if StorageManager not available
+            examples = JSON.parse(localStorage.getItem(EXAMPLES_KEY) || '[]');
+        }
+        examples = migrateVideos(examples);
+        await saveVideos(); // Save migrated data
+        return examples;
+    }
+
+    // ============================================
+    // Save videos using StorageManager
+    // ============================================
+    async function saveVideos() {
+        if (window.StorageManager) {
+            await window.StorageManager.saveVideos(examples);
+        } else {
+            // Fallback to localStorage
+            await saveVideos();
+        }
+    }
+
+    // Initialize: Load videos from storage
+    (async () => {
+        await loadVideos();
+        renderVideoList(examples);
+        renderCategoryFilters();
+    })();
+
+    // Listen for student selection changes
+    window.addEventListener('studentSelected', async (e) => {
+        console.log('📺 Student selected, reloading videos:', e.detail.studentId);
+        await loadVideos();
+        renderVideoList(examples);
+        renderCategoryFilters();
+    });
+
+    window.addEventListener('studentDeselected', async () => {
+        console.log('📺 Switched to localStorage mode, reloading videos');
+        await loadVideos();
+        renderVideoList(examples);
+        renderCategoryFilters();
+    });
 
     // ============================================
     // YouTube URL에서 영상 ID 추출
@@ -327,7 +372,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         examples.push(newVideo);
-        localStorage.setItem(EXAMPLES_KEY, JSON.stringify(examples));
+        await saveVideos();
 
         videoTitleInput.value = '';
         videoCategoryInput.value = '';
@@ -357,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
         video.title = newTitle.trim();
         video.category = newCategory.trim() || '일반';
 
-        localStorage.setItem(EXAMPLES_KEY, JSON.stringify(examples));
+        await saveVideos();
 
         renderCategoryFilters();
         renderVideoList();
@@ -381,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!confirm(confirmMsg)) return;
 
         examples = examples.filter(v => v.id !== videoId);
-        localStorage.setItem(EXAMPLES_KEY, JSON.stringify(examples));
+        await saveVideos();
 
         renderCategoryFilters();
         renderVideoList();

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="강사 프로필 조회 - Vocal Class">
+    <title>강사 프로필 - Vocal Class</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body class="bg-gray-50">
+    <nav class="bg-indigo-600 text-white p-4 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">강사 프로필</h1>
+            <div>
+                <a href="javascript:history.back()" class="hover:underline mr-4">뒤로가기</a>
+                <a href="/" class="hover:underline">홈</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <!-- 로딩 상태 -->
+        <div id="loading-state" class="text-center py-12">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+            <p class="mt-4 text-gray-600">프로필을 불러오는 중...</p>
+        </div>
+
+        <!-- 프로필 없음 -->
+        <div id="no-profile" class="hidden text-center py-12">
+            <p class="text-gray-600 text-lg">프로필을 찾을 수 없습니다.</p>
+            <a href="/" class="btn btn-primary mt-4 inline-block">홈으로</a>
+        </div>
+
+        <!-- 프로필 내용 -->
+        <div id="profile-content" class="hidden space-y-6">
+            <!-- 강사 기본 정보 카드 -->
+            <div class="bg-white rounded-lg shadow p-6 md:p-8">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-4">
+                            <h2 id="teacher-name" class="text-3xl font-bold text-gray-900"></h2>
+                            <span id="category-badge" class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-semibold"></span>
+                        </div>
+
+                        <!-- 평점 -->
+                        <div class="flex items-center gap-2 mb-4">
+                            <div class="flex items-center" id="rating-stars">
+                                <!-- 별점은 JS로 동적 생성 -->
+                            </div>
+                            <span id="rating-text" class="text-lg font-semibold text-gray-700"></span>
+                            <span id="review-count" class="text-gray-500"></span>
+                        </div>
+
+                        <!-- 시간당 수업료 -->
+                        <div id="hourly-rate-section" class="hidden">
+                            <p class="text-2xl font-bold text-indigo-600">
+                                <span id="hourly-rate"></span>
+                                <span class="text-base text-gray-600 font-normal">/ 시간</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 자기소개 -->
+                <div id="bio-section" class="hidden mt-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">자기소개</h3>
+                    <p id="bio-text" class="text-gray-700 whitespace-pre-wrap leading-relaxed"></p>
+                </div>
+
+                <!-- 자격증/경력 -->
+                <div id="certification-section" class="hidden mt-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">자격증 및 경력</h3>
+                    <p id="certification-text" class="text-gray-700 whitespace-pre-wrap leading-relaxed"></p>
+                </div>
+
+                <!-- 챗봇 문의 버튼 -->
+                <div class="mt-8 pt-6 border-t border-gray-200">
+                    <a id="chatbot-link" href="#" class="btn btn-primary w-full text-lg py-4 flex items-center justify-center gap-2">
+                        <span class="text-2xl">💬</span>
+                        <span>AI 챗봇으로 문의하기</span>
+                    </a>
+                    <p class="text-sm text-gray-500 text-center mt-2">
+                        궁금한 점을 AI 챗봇에게 물어보세요
+                    </p>
+                </div>
+            </div>
+
+            <!-- 리뷰 섹션 -->
+            <div class="bg-white rounded-lg shadow p-6 md:p-8">
+                <h3 class="text-2xl font-bold text-gray-900 mb-6">수강생 리뷰</h3>
+
+                <div id="reviews-list" class="space-y-4">
+                    <!-- 리뷰는 JS로 동적 생성 -->
+                </div>
+
+                <div id="no-reviews" class="hidden text-center py-8 text-gray-500">
+                    아직 작성된 리뷰가 없습니다.
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/components.js?v=7"></script>
+    <script>
+        let teacherId = null;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // URL에서 teacherId 가져오기
+            const urlParams = new URLSearchParams(window.location.search);
+            teacherId = urlParams.get('teacherId');
+
+            if (!teacherId) {
+                showNoProfile();
+                return;
+            }
+
+            await loadProfile();
+        });
+
+        async function loadProfile() {
+            try {
+                // 프로필 로드
+                const profileResponse = await fetch(`/api/teachers/profile?userId=${teacherId}`);
+                const profileData = await profileResponse.json();
+
+                if (!profileData.success || !profileData.profile) {
+                    showNoProfile();
+                    return;
+                }
+
+                const profile = profileData.profile;
+
+                // 리뷰 로드
+                const reviewsResponse = await fetch(`/api/reviews?teacherId=${teacherId}`);
+                const reviewsData = await reviewsResponse.json();
+
+                // UI 렌더링
+                renderProfile(profile);
+                renderReviews(reviewsData.reviews || [], reviewsData.avgRating || 0, reviewsData.reviewCount || 0);
+
+                // 챗봇 링크 설정
+                document.getElementById('chatbot-link').href = `/chat?teacherId=${teacherId}`;
+
+                // 로딩 숨기고 컨텐츠 표시
+                document.getElementById('loading-state').classList.add('hidden');
+                document.getElementById('profile-content').classList.remove('hidden');
+            } catch (error) {
+                console.error('Failed to load profile:', error);
+                showNoProfile();
+            }
+        }
+
+        function renderProfile(profile) {
+            // 이름
+            document.getElementById('teacher-name').textContent = profile.teacher_name || '강사';
+
+            // 카테고리
+            if (profile.category_name) {
+                const badge = document.getElementById('category-badge');
+                badge.textContent = `${profile.category_icon || ''} ${profile.category_name}`;
+            }
+
+            // 평점 (리뷰 데이터로 업데이트될 예정)
+            updateRating(profile.rating || 5.0, profile.review_count || 0);
+
+            // 시간당 수업료
+            if (profile.hourly_rate) {
+                document.getElementById('hourly-rate-section').classList.remove('hidden');
+                document.getElementById('hourly-rate').textContent =
+                    `${parseInt(profile.hourly_rate).toLocaleString()}원`;
+            }
+
+            // 자기소개
+            if (profile.bio) {
+                document.getElementById('bio-section').classList.remove('hidden');
+                document.getElementById('bio-text').textContent = profile.bio;
+            }
+
+            // 자격증/경력
+            if (profile.certification) {
+                document.getElementById('certification-section').classList.remove('hidden');
+                document.getElementById('certification-text').textContent = profile.certification;
+            }
+        }
+
+        function updateRating(rating, count) {
+            const starsContainer = document.getElementById('rating-stars');
+            starsContainer.innerHTML = '';
+
+            const fullStars = Math.floor(rating);
+            const hasHalfStar = rating % 1 >= 0.5;
+
+            // 꽉 찬 별
+            for (let i = 0; i < fullStars; i++) {
+                starsContainer.innerHTML += '<span class="text-yellow-400 text-xl">★</span>';
+            }
+
+            // 반 별
+            if (hasHalfStar) {
+                starsContainer.innerHTML += '<span class="text-yellow-400 text-xl">☆</span>';
+            }
+
+            // 빈 별
+            const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+            for (let i = 0; i < emptyStars; i++) {
+                starsContainer.innerHTML += '<span class="text-gray-300 text-xl">★</span>';
+            }
+
+            document.getElementById('rating-text').textContent = rating.toFixed(1);
+            document.getElementById('review-count').textContent = `(${count}개 리뷰)`;
+        }
+
+        function renderReviews(reviews, avgRating, reviewCount) {
+            const reviewsList = document.getElementById('reviews-list');
+            const noReviews = document.getElementById('no-reviews');
+
+            // 평점 업데이트 (실제 리뷰 데이터 반영)
+            if (reviewCount > 0) {
+                updateRating(avgRating, reviewCount);
+            }
+
+            if (!reviews || reviews.length === 0) {
+                noReviews.classList.remove('hidden');
+                return;
+            }
+
+            reviewsList.innerHTML = '';
+
+            reviews.forEach(review => {
+                const reviewCard = document.createElement('div');
+                reviewCard.className = 'border-b border-gray-200 pb-4 last:border-0';
+
+                const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
+                const date = new Date(review.created_at).toLocaleDateString('ko-KR');
+
+                reviewCard.innerHTML = `
+                    <div class="flex items-start justify-between mb-2">
+                        <div>
+                            <p class="font-semibold text-gray-900">${review.student_name || '익명'}</p>
+                            <div class="flex items-center gap-2">
+                                <span class="text-yellow-400">${stars}</span>
+                                <span class="text-sm text-gray-500">${date}</span>
+                            </div>
+                        </div>
+                    </div>
+                    ${review.comment ? `<p class="text-gray-700 mt-2">${review.comment}</p>` : ''}
+                `;
+
+                reviewsList.appendChild(reviewCard);
+            });
+        }
+
+        function showNoProfile() {
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('no-profile').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>

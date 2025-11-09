@@ -76,6 +76,100 @@ CREATE TABLE IF NOT EXISTS example_videos (
     FOREIGN KEY (teacher_id) REFERENCES users(id)
 );
 
+-- 학생별 드로잉 저장 테이블
+CREATE TABLE IF NOT EXISTS student_drawings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL,
+    drawing_data TEXT NOT NULL, -- JSON blob: {canvasData, cliparts, savedDrawings, exampleVideos}
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES users(id),
+    UNIQUE(student_id) -- 학생당 하나의 드로잉 데이터만 유지
+);
+
+-- ========== Phase 1: 멀티 수업 지원 ==========
+
+-- 수업 카테고리 테이블
+CREATE TABLE IF NOT EXISTS lesson_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,  -- '보컬', 'PT', '드로잉', '피아노' 등
+    icon TEXT,  -- 이모지 아이콘
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 강사 프로필 확장 컬럼들 (ALTER TABLE은 SQLite에서 제한적이므로 새 테이블로 확장)
+CREATE TABLE IF NOT EXISTS teacher_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    lesson_category_id INTEGER,
+    hourly_rate INTEGER,  -- 시간당 수업료 (원)
+    bio TEXT,  -- 강사 소개
+    profile_image_url TEXT,  -- R2 저장소 경로
+    certification TEXT,  -- 자격증/경력 JSON
+    rating REAL DEFAULT 5.0,  -- 평점 (1.0 ~ 5.0)
+    review_count INTEGER DEFAULT 0,  -- 리뷰 개수
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (lesson_category_id) REFERENCES lesson_categories(id)
+);
+
+-- 수업별 도구 설정 테이블
+CREATE TABLE IF NOT EXISTS lesson_tools (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lesson_category_id INTEGER NOT NULL,
+    tool_type TEXT NOT NULL,  -- 'drawing', 'video', 'audio', 'document'
+    is_enabled BOOLEAN DEFAULT 1,
+    display_order INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (lesson_category_id) REFERENCES lesson_categories(id),
+    UNIQUE(lesson_category_id, tool_type)
+);
+
+-- 리뷰 테이블
+CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    booking_id INTEGER NOT NULL,
+    student_id INTEGER NOT NULL,
+    teacher_id INTEGER NOT NULL,
+    rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+    comment TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (booking_id) REFERENCES bookings(id),
+    FOREIGN KEY (student_id) REFERENCES users(id),
+    FOREIGN KEY (teacher_id) REFERENCES users(id),
+    UNIQUE(booking_id)  -- 예약당 하나의 리뷰만 가능
+);
+
+-- ========== Phase 0: AI 챗봇 MVP ==========
+
+-- 챗봇 대화 세션 테이블
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    teacher_id INTEGER NOT NULL,  -- 어떤 강사의 챗봇인지
+    visitor_name TEXT,  -- 방문자 이름 (선택)
+    visitor_email TEXT,  -- 방문자 이메일 (선택)
+    session_key TEXT NOT NULL UNIQUE,  -- 세션 고유 키 (UUID)
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_message_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    message_count INTEGER DEFAULT 0,
+    is_active BOOLEAN DEFAULT 1,  -- 세션 활성 상태
+    FOREIGN KEY (teacher_id) REFERENCES users(id)
+);
+
+-- 챗봇 대화 로그 테이블
+CREATE TABLE IF NOT EXISTS chat_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    teacher_id INTEGER NOT NULL,
+    role TEXT NOT NULL CHECK(role IN ('user', 'assistant', 'system')),  -- 메시지 발신자
+    content TEXT NOT NULL,  -- 메시지 내용
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES chat_sessions(id),
+    FOREIGN KEY (teacher_id) REFERENCES users(id)
+);
+
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_schedules_teacher ON schedules(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_schedules_date ON schedules(specific_date);
@@ -85,3 +179,19 @@ CREATE INDEX IF NOT EXISTS idx_bookings_teacher ON bookings(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(booking_date);
 CREATE INDEX IF NOT EXISTS idx_bookings_date_time ON bookings(booking_date, time_slot);
 CREATE INDEX IF NOT EXISTS idx_attendances_session ON attendances(session_id);
+CREATE INDEX IF NOT EXISTS idx_student_drawings_student ON student_drawings(student_id);
+
+-- Phase 0 인덱스
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_teacher ON chat_sessions(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_key ON chat_sessions(session_key);
+CREATE INDEX IF NOT EXISTS idx_chat_logs_session ON chat_logs(session_id);
+CREATE INDEX IF NOT EXISTS idx_chat_logs_teacher ON chat_logs(teacher_id);
+
+-- Phase 1 인덱스
+CREATE INDEX IF NOT EXISTS idx_teacher_profiles_user ON teacher_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_profiles_category ON teacher_profiles(lesson_category_id);
+CREATE INDEX IF NOT EXISTS idx_teacher_profiles_rating ON teacher_profiles(rating DESC);
+CREATE INDEX IF NOT EXISTS idx_lesson_tools_category ON lesson_tools(lesson_category_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_teacher ON reviews(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_student ON reviews(student_id);
+CREATE INDEX IF NOT EXISTS idx_reviews_booking ON reviews(booking_id);

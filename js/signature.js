@@ -13,15 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const ATTENDANCE_KEY = 'attendance';
 
-    // localStorage 모드 체크
-    const isDevelopmentPort = ['3000', '8000', '8080', '5000', '5500'].includes(window.location.port);
-    const isLocalhost = window.location.hostname === 'localhost' ||
-                       window.location.hostname === '127.0.0.1' ||
-                       window.location.hostname.startsWith('192.168.') ||
-                       window.location.hostname.startsWith('10.') ||
-                       !window.location.hostname;
-    const USE_LOCAL_STORAGE_ONLY = isLocalhost || isDevelopmentPort;
-
     // 캔버스 크기 설정 (반응형) with DPR-aware scaling
     function resizeCanvas() {
         const dpr = window.devicePixelRatio || 1;
@@ -223,38 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             if (typeof showLoading === 'function') showLoading(true);
-
-            if (USE_LOCAL_STORAGE_ONLY) {
-                // localStorage 모드
-                console.warn('🔧 개발 모드: 출석을 localStorage에 저장합니다.');
-
-                const existingAttendance = JSON.parse(localStorage.getItem(ATTENDANCE_KEY) || '[]');
-
-                const newAttendance = {
-                    id: Date.now(),
-                    sessionId: currentSessionId,
-                    studentName: studentName,
-                    signature: signatureData,
-                    timestamp: new Date().toISOString(),
-                    date: new Date().toISOString().split('T')[0]
-                };
-
-                existingAttendance.push(newAttendance);
-                localStorage.setItem(ATTENDANCE_KEY, JSON.stringify(existingAttendance));
-
-                if (typeof showLoading === 'function') showLoading(false);
-                if (typeof showToast === 'function') {
-                    showToast('출석이 성공적으로 기록되었습니다! (개발 모드)', 'success');
-                } else {
-                    alert('출석이 성공적으로 기록되었습니다! ✅');
-                }
-
-                // Navigate to student page after short delay
-                setTimeout(() => {
-                    window.location.href = '/student';
-                }, 1000);
-                return;
-            }
 
             // API 모드
             const response = await fetch('/api/attendance', {
