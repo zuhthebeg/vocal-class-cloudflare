@@ -1,29 +1,26 @@
 name = "vocal-class"
 compatibility_date = "2025-10-11"
+pages_build_output_dir = "."
 
-# D1 데이터베이스 바인딩
+# Git 연동 배포 시 아래 설정은 Cloudflare Dashboard에서 직접 설정해야 합니다:
+# 1. Settings → Functions → D1 database bindings → Add binding
+#    - Variable name: DB
+#    - D1 database: vocal-class-db
+#
+# 2. Settings → Environment variables → Add variable
+#    - Variable name: GEMINI_API_KEY
+#    - Value: (실제 API 키)
+#
+# 3. R2 버킷 (선택사항)
+#    - Variable name: STORAGE
+#    - R2 bucket: vocal-class-storage
+
+# 로컬 개발용 설정 (wrangler pages dev)
 [[d1_databases]]
 binding = "DB"
 database_name = "vocal-class-db"
 database_id = "9f90ac1e-f6d8-4a9b-9e9d-2ae5548ac054"
 
-# R2 버킷 바인딩 (녹음파일, 서명 이미지 저장)
-# R2를 사용하려면 Cloudflare 대시보드에서 R2를 먼저 활성화해야 합니다
-# [[r2_buckets]]
-# binding = "STORAGE"
-# bucket_name = "vocal-class-storage"
-
-# KV 네임스페이스 (세션 관리용, 선택사항)
-#[[kv_namespaces]]
-#binding = "SESSIONS"
-#id = "" # wrangler kv:namespace create 후 생성됨
-
-# 환경 변수 (개발용)
+# 로컬 개발용 환경 변수
 [vars]
 GEMINI_API_KEY = "AIzaSyDnEBUVW9oaVCIQaDKRq2I80ZhLDpRg2pE"
-
-# 프로덕션 환경 변수
-# 프로덕션 배포 시 Cloudflare Dashboard에서 환경 변수를 설정하세요
-# [env.production]
-# [env.production.vars]
-# GEMINI_API_KEY = "production-key"
