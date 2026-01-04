@@ -195,3 +195,21 @@ CREATE INDEX IF NOT EXISTS idx_lesson_tools_category ON lesson_tools(lesson_cate
 CREATE INDEX IF NOT EXISTS idx_reviews_teacher ON reviews(teacher_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_student ON reviews(student_id);
 CREATE INDEX IF NOT EXISTS idx_reviews_booking ON reviews(booking_id);
+
+-- ========== PT 운동 일지 ==========
+
+-- 운동 일지 테이블
+CREATE TABLE IF NOT EXISTS workout_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL,
+    log_date DATE NOT NULL,
+    content TEXT NOT NULL,  -- 자연어 운동 기록
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES users(id)
+);
+
+-- 운동 일지 인덱스
+CREATE INDEX IF NOT EXISTS idx_workout_logs_student ON workout_logs(student_id);
+CREATE INDEX IF NOT EXISTS idx_workout_logs_date ON workout_logs(log_date);
+CREATE INDEX IF NOT EXISTS idx_workout_logs_student_date ON workout_logs(student_id, log_date);
