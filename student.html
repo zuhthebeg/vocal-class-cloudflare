@@ -122,6 +122,22 @@
             </a>
         </section>
         </div>
+
+        <!-- PT 운동 일지 섹션 (PT 수업일 때만 표시) -->
+        <section id="workout-log-section" class="hidden bg-white p-6 rounded-lg shadow mt-8" aria-labelledby="workout-log-heading">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="workout-log-heading" class="text-2xl font-bold">💪 PT 운동 일지</h2>
+                <button id="open-workout-log-modal" class="btn btn-primary">
+                    + 기록 추가
+                </button>
+            </div>
+            <p class="text-gray-600 mb-4">운동 기록을 자연어로 작성하세요. 예: "레그프레스 10회, 주의사항 - 다리조심"</p>
+
+            <div id="workout-log-list" class="space-y-3 max-h-96 overflow-y-auto" aria-live="polite">
+                <!-- 운동 기록은 JS로 동적 생성 -->
+                <p class="text-gray-400 text-center py-8">운동 기록이 없습니다.</p>
+            </div>
+        </section>
     </main>
 
     <!-- 리뷰 작성 모달 -->
@@ -161,6 +177,83 @@
                         리뷰 제출
                     </button>
                     <button type="button" id="close-review-modal" class="btn btn-secondary flex-1">
+                        취소
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 운동 일지 작성 모달 -->
+    <div id="workout-log-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 md:p-8 max-w-lg w-full mx-4">
+            <h3 class="text-2xl font-bold mb-4">💪 운동 기록 작성</h3>
+
+            <form id="workout-log-form" class="space-y-4">
+                <div>
+                    <label for="workout-date" class="block text-sm font-medium text-gray-700 mb-2">
+                        날짜
+                    </label>
+                    <input type="date" id="workout-date"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    <p class="text-xs text-gray-500 mt-1">비워두면 오늘 날짜로 저장됩니다.</p>
+                </div>
+
+                <div>
+                    <label for="workout-content" class="block text-sm font-medium text-gray-700 mb-2">
+                        운동 내용 <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="workout-content" rows="6"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                              placeholder="예시:
+레그프레스 10회, 주의사항 - 다리조심
+벤치프레스 10회 3세트, 주의사항 - 팔조심
+런닝머신 30분
+
+자유롭게 작성하세요!"></textarea>
+                </div>
+
+                <div class="flex gap-3">
+                    <button type="submit" class="btn btn-primary flex-1">
+                        저장하기
+                    </button>
+                    <button type="button" id="close-workout-log-modal" class="btn btn-secondary flex-1">
+                        취소
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 운동 일지 수정 모달 -->
+    <div id="workout-edit-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 md:p-8 max-w-lg w-full mx-4">
+            <h3 class="text-2xl font-bold mb-4">✏️ 운동 기록 수정</h3>
+
+            <form id="workout-edit-form" class="space-y-4">
+                <input type="hidden" id="edit-workout-id">
+
+                <div>
+                    <label for="edit-workout-date" class="block text-sm font-medium text-gray-700 mb-2">
+                        날짜
+                    </label>
+                    <input type="date" id="edit-workout-date"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+
+                <div>
+                    <label for="edit-workout-content" class="block text-sm font-medium text-gray-700 mb-2">
+                        운동 내용 <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="edit-workout-content" rows="6"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                </div>
+
+                <div class="flex gap-3">
+                    <button type="submit" class="btn btn-primary flex-1">
+                        수정하기
+                    </button>
+                    <button type="button" id="close-workout-edit-modal" class="btn btn-secondary flex-1">
                         취소
                     </button>
                 </div>
@@ -309,6 +402,322 @@
             if (teacherId) {
                 window.location.href = `/teacher-profile-view?teacherId=${teacherId}`;
             }
+        });
+
+        // ========== PT 운동 일지 기능 ==========
+
+        // PT 카테고리 확인 및 섹션 표시
+        async function checkAndShowWorkoutSection() {
+            try {
+                const user = getUser();
+                if (!user || !user.id) return;
+
+                // 학생의 예약 목록에서 PT 수업이 있는지 확인
+                const response = await fetch(`/api/bookings?studentId=${user.id}`);
+                const data = await response.json();
+
+                if (!response.ok) return;
+
+                const bookings = data.bookings || [];
+
+                // PT 강사와 예약 이력이 있는지 확인 (카테고리 ID 2 = PT)
+                // 또는 단순히 운동 일지 섹션을 항상 표시 (PT 학생용)
+                // 여기서는 간단히 항상 표시하도록 함 (나중에 카테고리 필터 추가 가능)
+                const workoutSection = document.getElementById('workout-log-section');
+                if (workoutSection) {
+                    workoutSection.classList.remove('hidden');
+                    loadWorkoutLogs();
+                }
+            } catch (error) {
+                console.error('Failed to check workout section:', error);
+            }
+        }
+
+        // 운동 일지 목록 로드
+        async function loadWorkoutLogs() {
+            try {
+                const user = getUser();
+                if (!user || !user.id) return;
+
+                const response = await fetch(`/api/workout-logs?studentId=${user.id}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load workout logs');
+                }
+
+                renderWorkoutLogs(data.logs || []);
+            } catch (error) {
+                console.error('Load workout logs error:', error);
+            }
+        }
+
+        // 운동 일지 렌더링
+        function renderWorkoutLogs(logs) {
+            const container = document.getElementById('workout-log-list');
+            if (!container) return;
+
+            if (logs.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-center py-8">운동 기록이 없습니다.</p>';
+                return;
+            }
+
+            container.innerHTML = logs.map(log => {
+                const logDate = new Date(log.log_date);
+                const formattedDate = logDate.toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    weekday: 'short'
+                });
+
+                // 내용을 줄바꿈으로 분리하여 리스트로 표시
+                const contentLines = log.content.split('\n').filter(line => line.trim());
+
+                return `
+                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-sm font-medium text-indigo-600">${formattedDate}</span>
+                            <div class="flex gap-2">
+                                <button onclick="openWorkoutEditModal(${log.id}, '${log.log_date}', \`${log.content.replace(/`/g, '\\`').replace(/\\/g, '\\\\')}\`)"
+                                        class="text-xs text-gray-500 hover:text-indigo-600">
+                                    수정
+                                </button>
+                                <button onclick="deleteWorkoutLog(${log.id})"
+                                        class="text-xs text-gray-500 hover:text-red-600">
+                                    삭제
+                                </button>
+                            </div>
+                        </div>
+                        <div class="text-gray-700 whitespace-pre-line">${escapeHtml(log.content)}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // HTML 이스케이프 함수
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 운동 일지 모달 열기
+        document.getElementById('open-workout-log-modal').addEventListener('click', () => {
+            document.getElementById('workout-log-modal').classList.remove('hidden');
+            document.getElementById('workout-log-modal').classList.add('flex');
+
+            // 오늘 날짜를 기본값으로 설정
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('workout-date').value = today;
+            document.getElementById('workout-content').value = '';
+        });
+
+        // 운동 일지 모달 닫기
+        document.getElementById('close-workout-log-modal').addEventListener('click', () => {
+            document.getElementById('workout-log-modal').classList.add('hidden');
+            document.getElementById('workout-log-modal').classList.remove('flex');
+        });
+
+        // 운동 일지 저장
+        document.getElementById('workout-log-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const content = document.getElementById('workout-content').value.trim();
+            const logDate = document.getElementById('workout-date').value;
+
+            if (!content) {
+                if (typeof showToast === 'function') {
+                    showToast('운동 내용을 입력해주세요.', 'error');
+                } else {
+                    alert('운동 내용을 입력해주세요.');
+                }
+                return;
+            }
+
+            try {
+                if (typeof showLoading === 'function') {
+                    showLoading(true);
+                }
+
+                const user = getUser();
+                const response = await fetch('/api/workout-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        studentId: user.id,
+                        logDate: logDate || null,
+                        content: content
+                    })
+                });
+
+                const data = await response.json();
+
+                if (typeof showLoading === 'function') {
+                    showLoading(false);
+                }
+
+                if (data.ok) {
+                    if (typeof showToast === 'function') {
+                        showToast('운동 기록이 저장되었습니다!', 'success');
+                    } else {
+                        alert('운동 기록이 저장되었습니다!');
+                    }
+
+                    // 모달 닫기
+                    document.getElementById('workout-log-modal').classList.add('hidden');
+                    document.getElementById('workout-log-modal').classList.remove('flex');
+
+                    // 목록 새로고침
+                    loadWorkoutLogs();
+                } else {
+                    throw new Error(data.error || '저장에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('Failed to save workout log:', error);
+                if (typeof showLoading === 'function') {
+                    showLoading(false);
+                }
+                if (typeof showToast === 'function') {
+                    showToast(error.message, 'error');
+                } else {
+                    alert(error.message);
+                }
+            }
+        });
+
+        // 수정 모달 열기
+        window.openWorkoutEditModal = function(logId, logDate, content) {
+            document.getElementById('edit-workout-id').value = logId;
+            document.getElementById('edit-workout-date').value = logDate;
+            document.getElementById('edit-workout-content').value = content;
+
+            document.getElementById('workout-edit-modal').classList.remove('hidden');
+            document.getElementById('workout-edit-modal').classList.add('flex');
+        };
+
+        // 수정 모달 닫기
+        document.getElementById('close-workout-edit-modal').addEventListener('click', () => {
+            document.getElementById('workout-edit-modal').classList.add('hidden');
+            document.getElementById('workout-edit-modal').classList.remove('flex');
+        });
+
+        // 운동 일지 수정
+        document.getElementById('workout-edit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const logId = document.getElementById('edit-workout-id').value;
+            const content = document.getElementById('edit-workout-content').value.trim();
+            const logDate = document.getElementById('edit-workout-date').value;
+
+            if (!content) {
+                if (typeof showToast === 'function') {
+                    showToast('운동 내용을 입력해주세요.', 'error');
+                } else {
+                    alert('운동 내용을 입력해주세요.');
+                }
+                return;
+            }
+
+            try {
+                if (typeof showLoading === 'function') {
+                    showLoading(true);
+                }
+
+                const response = await fetch(`/api/workout-logs?id=${logId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        content: content,
+                        logDate: logDate
+                    })
+                });
+
+                const data = await response.json();
+
+                if (typeof showLoading === 'function') {
+                    showLoading(false);
+                }
+
+                if (data.ok) {
+                    if (typeof showToast === 'function') {
+                        showToast('운동 기록이 수정되었습니다!', 'success');
+                    } else {
+                        alert('운동 기록이 수정되었습니다!');
+                    }
+
+                    // 모달 닫기
+                    document.getElementById('workout-edit-modal').classList.add('hidden');
+                    document.getElementById('workout-edit-modal').classList.remove('flex');
+
+                    // 목록 새로고침
+                    loadWorkoutLogs();
+                } else {
+                    throw new Error(data.error || '수정에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('Failed to update workout log:', error);
+                if (typeof showLoading === 'function') {
+                    showLoading(false);
+                }
+                if (typeof showToast === 'function') {
+                    showToast(error.message, 'error');
+                } else {
+                    alert(error.message);
+                }
+            }
+        });
+
+        // 운동 일지 삭제
+        window.deleteWorkoutLog = async function(logId) {
+            if (!confirm('이 운동 기록을 삭제하시겠습니까?')) {
+                return;
+            }
+
+            try {
+                if (typeof showLoading === 'function') {
+                    showLoading(true);
+                }
+
+                const response = await fetch(`/api/workout-logs?id=${logId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (typeof showLoading === 'function') {
+                    showLoading(false);
+                }
+
+                if (data.ok) {
+                    if (typeof showToast === 'function') {
+                        showToast('운동 기록이 삭제되었습니다.', 'success');
+                    } else {
+                        alert('운동 기록이 삭제되었습니다.');
+                    }
+                    loadWorkoutLogs();
+                } else {
+                    throw new Error(data.error || '삭제에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('Failed to delete workout log:', error);
+                if (typeof showLoading === 'function') {
+                    showLoading(false);
+                }
+                if (typeof showToast === 'function') {
+                    showToast(error.message, 'error');
+                } else {
+                    alert(error.message);
+                }
+            }
+        };
+
+        // 페이지 로드 시 운동 일지 섹션 확인
+        document.addEventListener('DOMContentLoaded', () => {
+            // 잠시 후 실행 (auth.js 로드 후)
+            setTimeout(() => {
+                checkAndShowWorkoutSection();
+            }, 500);
         });
     </script>
 </body>
