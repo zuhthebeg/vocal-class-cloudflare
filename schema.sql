@@ -213,3 +213,23 @@ CREATE TABLE IF NOT EXISTS workout_logs (
 CREATE INDEX IF NOT EXISTS idx_workout_logs_student ON workout_logs(student_id);
 CREATE INDEX IF NOT EXISTS idx_workout_logs_date ON workout_logs(log_date);
 CREATE INDEX IF NOT EXISTS idx_workout_logs_student_date ON workout_logs(student_id, log_date);
+
+-- 운동 상세 기록 테이블 (AI 파싱 결과)
+CREATE TABLE IF NOT EXISTS workout_exercises (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    log_id INTEGER NOT NULL,
+    exercise_name TEXT NOT NULL,
+    body_part TEXT,
+    weight REAL,
+    reps INTEGER,
+    sets INTEGER,
+    duration INTEGER,
+    note TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (log_id) REFERENCES workout_logs(id) ON DELETE CASCADE
+);
+
+-- 운동 상세 인덱스
+CREATE INDEX IF NOT EXISTS idx_workout_exercises_log ON workout_exercises(log_id);
+CREATE INDEX IF NOT EXISTS idx_workout_exercises_name ON workout_exercises(exercise_name);
+CREATE INDEX IF NOT EXISTS idx_workout_exercises_bodypart ON workout_exercises(body_part);
