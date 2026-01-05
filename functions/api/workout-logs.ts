@@ -159,7 +159,16 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     }
 
     return new Response(
-      JSON.stringify({ ok: true, logId, logDate, exercises }),
+      JSON.stringify({
+        ok: true,
+        logId,
+        logDate,
+        exercises,
+        debug: {
+          hasGeminiKey: !!env.GEMINI_API_KEY,
+          exercisesParsed: exercises.length
+        }
+      }),
       { status: 201, headers: { 'Content-Type': 'application/json' } }
     );
 
