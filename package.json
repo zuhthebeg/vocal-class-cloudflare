@@ -2,20 +2,35 @@
   "name": "vocal-class",
   "version": "1.0.0",
   "description": "Vocal class booking and attendance system",
+  "type": "module",
   "scripts": {
-    "dev": "wrangler pages dev . --port=8788",
-    "dev:debug": "wrangler pages dev . --port=8788 --log-level=debug",
-    "deploy": "wrangler pages deploy .",
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "pages:dev": "wrangler pages dev dist --port=8788",
+    "pages:deploy": "wrangler pages deploy dist",
     "db:init": "wrangler d1 execute vocal-class-db --file=./schema.sql",
     "start": "node server.js"
   },
   "dependencies": {
     "body-parser": "^1.20.2",
     "csv-stringify": "^6.0.5",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "lucide-react": "^0.469.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router": "^7.1.3",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.0.6",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.4",
     "playwright": "^1.56.1",
+    "tailwindcss": "^4.0.6",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.11",
     "wrangler": "^4.45.2"
   }
 }
