@@ -181,7 +181,7 @@ async function callGeminiAPI(
   enableFunctionCalling: boolean = false,
   mode: 'student' | 'teacher' = 'student'
 ): Promise<{ reply: string; functionCall?: any }> {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+  const url = 'https://gateway.ai.cloudflare.com/v1/3d0681b782422e56226a0a1df4a0e8b2/travly-ai-gateway/google-ai-studio/v1beta/models/gemini-2.5-flash:generateContent';
 
   // Gemini API 형식으로 변환
   const contents = messages
@@ -250,9 +250,9 @@ async function callGeminiAPI(
     }
   }
 
-  const response = await fetch(`${url}?key=${apiKey}`, {
+  const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify(requestBody)
   });
 
