@@ -1,61 +1,50 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 
-export type UserRole = 'teacher' | 'student'
-
-export interface User {
+interface User {
   id: number
-  name: string
-  role: UserRole
+  username: string
+  email?: string
+  picture?: string
+  auth_provider: string
 }
 
 interface AuthState {
   user: User | null
+  credential: string | null
   isLoading: boolean
-  error: string | null
-  login: (name: string, role: UserRole) => Promise<boolean>
+  setUser: (user: User, credential: string) => void
   logout: () => void
-  clearError: () => void
+  loadFromStorage: () => void
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      isLoading: false,
-      error: null,
+export const useAuthStore = create<AuthState>((set) => ({
+  user: null,
+  credential: null,
+  isLoading: true,
 
-      login: async (name: string, role: UserRole) => {
-        set({ isLoading: true, error: null })
-        try {
-          const res = await fetch('/api/auth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, role }),
-          })
+  setUser: (user, credential) => {
+    localStorage.setItem('class_user', JSON.stringify(user))
+    localStorage.setItem('class_credential', credential)
+    set({ user, credential, isLoading: false })
+  },
 
-          if (!res.ok) {
-            const data = await res.json()
-            throw new Error(data.error || '로그인 실패')
-          }
+  logout: () => {
+    localStorage.removeItem('class_user')
+    localStorage.removeItem('class_credential')
+    set({ user: null, credential: null, isLoading: false })
+  },
 
-          const data = await res.json()
-          set({ user: { id: data.id, name: data.name, role: data.role }, isLoading: false })
-          return true
-        } catch (err) {
-          set({ error: err instanceof Error ? err.message : '로그인 실패', isLoading: false })
-          return false
-        }
-      },
-
-      logout: () => {
-        set({ user: null, error: null })
-      },
-
-      clearError: () => set({ error: null }),
-    }),
-    {
-      name: 'vocal-class-auth',
+  loadFromStorage: () => {
+    try {
+      const userStr = localStorage.getItem('class_user')
+      const credential = localStorage.getItem('class_credential')
+      if (userStr && credential) {
+        set({ user: JSON.parse(userStr), credential, isLoading: false })
+      } else {
+        set({ isLoading: false })
+      }
+    } catch {
+      set({ isLoading: false })
     }
-  )
-)
+  },
+}))

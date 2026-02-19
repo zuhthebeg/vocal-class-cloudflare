@@ -1,0 +1,1 @@
+﻿export function HobbiesPage() { return <div className='max-w-lg mx-auto px-4 pt-6'><h1 className='text-2xl font-bold'>TODO: HobbiesPage</h1></div> }
