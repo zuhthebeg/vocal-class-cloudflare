@@ -1,5 +1,4 @@
 import type { Hobby, Entry } from './api'
-import { HOBBY_CATEGORIES } from './api'
 
 const HOBBIES_KEY = 'class_hobbies'
 const ENTRIES_KEY = 'class_entries'
